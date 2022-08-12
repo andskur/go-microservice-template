@@ -2,7 +2,10 @@ package serve
 
 import (
 	"fmt"
+
+	"github.com/Misnaged/annales/logger"
 	"github.com/spf13/cobra"
+
 	"microservice-template/internal"
 )
 
@@ -16,6 +19,9 @@ func Cmd(app *internal.App) *cobra.Command {
 			}
 
 			return app.Serve()
+		},
+		PreRun: func(cmd *cobra.Command, args []string) {
+			logger.Log().Info(app.Version())
 		},
 	}
 }

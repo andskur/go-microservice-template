@@ -1,8 +1,9 @@
 package main
 
 import (
-	"log"
 	"os"
+
+	"github.com/Misnaged/annales/logger"
 
 	"microservice-template/cmd/root"
 	"microservice-template/cmd/serve"
@@ -11,9 +12,8 @@ import (
 
 func main() {
 	app, err := internal.NewApplication()
-
 	if err != nil {
-		log.Println("An error occurred", err)
+		logger.Log().Infof("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -21,7 +21,7 @@ func main() {
 	rootCmd.AddCommand(serve.Cmd(app))
 
 	if err := rootCmd.Execute(); err != nil {
-		log.Println("An error occurred", err)
+		logger.Log().Infof("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
 }
