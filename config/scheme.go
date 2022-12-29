@@ -1,8 +1,8 @@
 package config
 
-// Scheme is application config Scheme
+// Scheme represents the application configuration scheme.
 type Scheme struct {
-	// Application environment
+	// Env is the application environment.
 	Env string
 	// TODO add needed config params
 }

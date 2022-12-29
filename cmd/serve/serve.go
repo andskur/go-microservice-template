@@ -9,6 +9,8 @@ import (
 	"microservice-template/internal"
 )
 
+// Cmd returns the "serve" command of the application.
+// This command is responsible for initializing and
 func Cmd(app *internal.App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",

@@ -1,38 +1,27 @@
+# Set APP to the name of the application
 APP:=template-service
-COMMON_PATH	?= $(shell pwd)
+
+# Set APP_ENTRY_POINT to the main Go file for the application
 APP_ENTRY_POINT:=cmd/template-service.go
+
+# Set BUILD_OUT_DIR to the directory where the built executable should be placed
 BUILD_OUT_DIR:=./
 
-GOOS	:=
-GOARCH	:=
-ifeq ($(OS),Windows_NT)
-	GOOS =windows
-	ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-		OSFLAG =amd64
-	endif
-	ifeq ($(PROCESSOR_ARCHITECTURE),x86)
-		OSFLAG =ia32
-	endif
-else
-	UNAME_S := $(shell uname -s)
-	ifeq ($(UNAME_S),Linux)
-		GOOS =linux
-	endif
-	ifeq ($(UNAME_S),Darwin)
-		GOOS =darwin
-	endif
-		UNAME_P := $(shell uname -m)
-	ifeq ($(UNAME_P),x86_64)
-		GOARCH =amd64
-	endif
-	ifneq ($(filter %86,$(UNAME_P)),)
-		GOARCH =386
-	endif
-	ifneq ($(filter arm%,$(UNAME_P)),)
-		GOARCH =arm64
-	endif
-endif
+# path to versioner package
+GITVER_PKG:=github.com/Misnaged/annales/versioner
 
+# Set GOOS and GOARCH to the current system values using the go env command
+GOOS=$(shell go env GOOS)
+GOARCH=$(shell go env GOARCH)
+
+# set git related vars for versioning
+TAG 		:= $(shell git describe --abbrev=0 --tags)
+COMMIT		:= $(shell git rev-parse HEAD)
+BRANCH		?= $(shell git rev-parse --abbrev-ref HEAD)
+REMOTE		:= $(shell git config --get remote.origin.url)
+BUILD_DATE	:= $(shell date +'%Y-%m-%dT%H:%M:%SZ%Z')
+
+# Set RELEASE to either the current TAG or COMMIT
 RELEASE :=
 ifeq ($(TAG),)
 	RELEASE := $(COMMIT)
@@ -40,19 +29,46 @@ else
 	RELEASE := $(TAG)
 endif
 
-all: tidy build
+# append versioner vars to ldflags
+LDFLAGS += -X $(GITVER_PKG).ServiceName=$(APP)
+LDFLAGS += -X $(GITVER_PKG).CommitTag=$(TAG)
+LDFLAGS += -X $(GITVER_PKG).CommitSHA=$(COMMIT)
+LDFLAGS += -X $(GITVER_PKG).CommitBranch=$(BRANCH)
+LDFLAGS += -X $(GITVER_PKG).OriginURL=$(REMOTE)
+LDFLAGS += -X $(GITVER_PKG).BuildDate=$(BUILD_DATE)
 
+# The all target runs the tidy, build, and test targets
+all: tidy build test
+
+# The tidy target runs go mod tidy
 tidy:
 	go mod tidy
 
+# The update target runs go get -u
 update:
 	go get -u ./...
 
+# The run target runs the application with race detection enabled
 run:
-	MallocNanoZone=0 go run -race $(APP_ENTRY_POINT) serve
+	GODEBUG=xray_ptrace=1 go run -race $(APP_ENTRY_POINT) serve
 
-build:
+# The build target builds the application for the current system
+build: clean
 	env CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-w -s ${LDFLAGS}" -o $(BUILD_OUT_DIR)/$(APP) $(APP_ENTRY_POINT)
 
+# The test target runs go test
 test:
 	go test ./...
+
+# The clean target deletes the build output file
+clean:
+	rm $(BUILD_OUT_DIR)/$(APP)
+
+# The test-coverage target runs go test with coverage enabled and generates a coverage report
+test-coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out
+
+# The lint target runs golint to check for common style issues
+lint:
+	golint ./......

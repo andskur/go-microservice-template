@@ -12,6 +12,7 @@ import (
 	"microservice-template/internal"
 )
 
+// Cmd returns the root command for the application
 func Cmd(app *internal.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:              "microservice",
@@ -27,6 +28,8 @@ func Cmd(app *internal.App) *cobra.Command {
 	return cmd
 }
 
+// initializeConfig reads in config file and sets configuration
+// via environment variables
 func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -44,6 +47,7 @@ func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 	return viper.Unmarshal(cfg)
 }
 
+// bindFlags binds flags to the command
 func bindFlags(cmd *cobra.Command) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if !f.Changed && viper.IsSet(f.Name) {
