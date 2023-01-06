@@ -139,6 +139,8 @@ github.com/magiconair/properties v1.8.6 h1:5ibWZ6iY0NctNGWo87LalDlEZ6R41TqbbDamh
 github.com/magiconair/properties v1.8.6/go.mod h1:y3VJvCyxH9uVvJTWEGAELF3aiYNyPKd5NZ3oSwXrF60=
 github.com/misnaged/annales v0.0.3 h1:3/qgWTKday/AY06ONB49i2aS/LAlgocJ/8H+WX1Y3s8=
 github.com/misnaged/annales v0.0.3/go.mod h1:FJZF0IfFPuK5N2uv7hrY6/pwmaO0481rJICd1H3TJ9Q=
+github.com/misnaged/annales v0.0.4 h1:VmVtYtOZPFXM3jpgng4na/4qs7NwGoF3nGtbDn/2xs0=
+github.com/misnaged/annales v0.0.4/go.mod h1:FJZF0IfFPuK5N2uv7hrY6/pwmaO0481rJICd1H3TJ9Q=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
