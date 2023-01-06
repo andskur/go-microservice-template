@@ -3,7 +3,7 @@ package serve
 import (
 	"fmt"
 
-	"github.com/Misnaged/annales/logger"
+	"github.com/misnaged/annales/logger"
 	"github.com/spf13/cobra"
 
 	"microservice-template/internal"

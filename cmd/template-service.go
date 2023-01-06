@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/Misnaged/annales/logger"
+	"github.com/misnaged/annales/logger"
 
 	"microservice-template/cmd/root"
 	"microservice-template/cmd/serve"

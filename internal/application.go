@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	version "github.com/Misnaged/annales/versioner"
+	version "github.com/misnaged/annales/versioner"
 
 	"microservice-template/config"
 )
