@@ -25,7 +25,7 @@ func main() {
 	rootCmd := root.Cmd(app)
 	rootCmd.AddCommand(serve.Cmd(app))
 
-	if err := rootCmd.Execute(); err != nil {
+	if err = rootCmd.Execute(); err != nil {
 		logger.Log().Infof("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
