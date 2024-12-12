@@ -1,5 +1,5 @@
 # Use the latest version of Go as the base image
-FROM golang:1.21 AS base
+FROM golang:1.23 AS base
 
 # Install needed dependencies for base image and update certs
 RUN apt-get update \
