@@ -25,5 +25,11 @@ func Cmd(app *internal.App) *cobra.Command {
 		PreRun: func(cmd *cobra.Command, args []string) {
 			logger.Log().Info(app.Version())
 		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			if err := app.Stop(); err != nil {
+				logger.Log().Errorf("cant stop app")
+			}
+			logger.Log().Info("App stopped")
+		},
 	}
 }
