@@ -69,6 +69,10 @@ test-coverage:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
 
-# The lint target runs golint to check for common style issues
+# The lint target runs golangci-lint to check for common style and code quality issues
 lint:
-	golint ./......
+	golangci-lint run ./...
+
+# The lint-install target installs golangci-lint if not already installed
+lint-install:
+	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
