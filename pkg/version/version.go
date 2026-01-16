@@ -1,3 +1,4 @@
+// Package version provides build and VCS metadata formatting.
 package version
 
 import (
@@ -11,13 +12,13 @@ import (
 	"golang.org/x/text/language"
 )
 
-// unspecified placeholder used to indicate unspecified values
+// unspecified placeholder used to indicate unspecified values.
 const unspecified = "unspecified"
 
-// dateLayout is string layout for parsing datetime
+// dateLayout is string layout for parsing datetime.
 const dateLayout = "2006-01-02T15:04:05ZMST"
 
-// verTemplate is template for version message
+// verTemplate is template for version message.
 const verTemplate = `{{.GetName}} {{.Tag}}
 {{if .IfSpecified}}Branch {{.Branch}}, commit hash: {{.Commit}}
 Origin repository: {{.URL}}
@@ -25,7 +26,7 @@ Compiled at: {{.Date}}
 ©{{.Date.Year}} {{end}}
 `
 
-// This variables supposed to be bound during compilation using -ldflags
+// This variables supposed to be bound during compilation using -ldflags.
 var (
 	ServiceName  = unspecified
 	CommitTag    = unspecified
@@ -35,7 +36,7 @@ var (
 	BuildDate    = unspecified
 )
 
-// Version represent git version structure
+// Version represent git version structure.
 type Version struct {
 	Service string
 	Tag     string
@@ -46,7 +47,7 @@ type Version struct {
 	msg     bytes.Buffer
 }
 
-// NewVersion create new girt Version instance
+// NewVersion create new girt Version instance.
 func NewVersion() (ver *Version, err error) {
 	var date time.Time
 
@@ -77,7 +78,7 @@ func NewVersion() (ver *Version, err error) {
 	return
 }
 
-// initTemplate initialize Version message from template
+// initTemplate initialize Version message from template.
 func (v *Version) initTemplate() (err error) {
 	tmpl, err := template.New("version").Parse(verTemplate)
 	if err != nil {
@@ -88,7 +89,7 @@ func (v *Version) initTemplate() (err error) {
 	return
 }
 
-// IfSpecified check if version specified
+// IfSpecified check if version specified.
 func (v Version) IfSpecified() bool {
 	if v.Service == unspecified || v.Commit == unspecified || v.Branch == unspecified || v.URL == unspecified {
 		return false
@@ -96,12 +97,12 @@ func (v Version) IfSpecified() bool {
 	return true
 }
 
-// String return version message
+// String return version message.
 func (v Version) String() string {
 	return v.msg.String()
 }
 
-// GetName return service name
+// GetName return service name.
 func (v Version) GetName() string {
 	return cases.Title(language.English).String(v.Service)
 }

@@ -1,108 +1,91 @@
-version: 2
-
 run:
-  # Timeout for analysis
   timeout: 5m
 
-  # Which dirs to skip: issues from them won't be reported
-  skip-dirs:
+issues:
+  exclude-dirs:
     - vendor
-
-  # Which files to skip: they will be analyzed, but issues from them won't be reported
-  skip-files:
+  exclude-files:
     - ".*\\.pb\\.go$"
     - ".*\\.gen\\.go$"
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+    - path: internal/hmac/
+      text: "weak cryptographic primitive"
+      linters:
+        - gosec
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
 
 linters:
   enable:
-    # Default linters (enabled by default in golangci-lint)
-    - errcheck      # Check for unchecked errors
-    - govet         # Reports suspicious constructs
-    - ineffassign   # Detect ineffectual assignments
-    - staticcheck   # Go static analysis
-    - unused        # Check for unused code
-
-    # Additional recommended linters
-    - revive        # Fast, configurable, extensible, flexible, and beautiful linter for Go (drop-in replacement for golint)
-    - misspell      # Finds commonly misspelled English words
-    - bodyclose     # Checks whether HTTP response body is closed successfully
-    - dogsled       # Checks assignments with too many blank identifiers
-    - dupl          # Tool for code clone detection
-    - exhaustive    # Check exhaustiveness of enum switch statements
-    - gochecknoinits # Checks that no init functions are present
-    - goconst       # Finds repeated strings that could be replaced by a constant
-    - gocritic      # Provides diagnostics that check for bugs, performance and style issues
-    - gocyclo       # Computes and checks the cyclomatic complexity of functions
-    - goprintffuncname # Checks that printf-like functions are named with f at the end
-    - gosec         # Inspects source code for security problems
-    - nakedret      # Finds naked returns in functions greater than a specified function length
-    - noctx         # Finds sending http request without context.Context
-    - nolintlint    # Reports ill-formed or insufficient nolint directives
-    - prealloc      # Finds slice declarations that could potentially be preallocated
-    - rowserrcheck  # Checks whether Err of rows is checked successfully
-    - sqlclosecheck # Checks that sql.Rows and sql.Stmt are closed
-    - errorlint     # Find code that can cause problems with error wrapping
-    - godot         # Check if comments end in a period
-    - gocognit      # Computes and checks the cognitive complexity of functions
-
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - misspell
+    - bodyclose
+    - dogsled
+    - dupl
+    - exhaustive
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - goprintffuncname
+    - gosec
+    - nakedret
+    - noctx
+    - nolintlint
+    - prealloc
+    - rowserrcheck
+    - sqlclosecheck
+    - errorlint
+    - godot
+    - gocognit
   disable:
-    - varnamelen    # Can be too strict for short variable names
-    - exhaustruct   # Can be too strict for struct initialization
-    - tagliatelle   # Can be too opinionated about tag naming
+    - varnamelen
+    - exhaustruct
+    - tagliatelle
 
 linters-settings:
   errcheck:
-    # Report about not checking of errors in type assertions: `a := b.(MyStruct)`
     check-type-assertions: true
-    # Report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`
     check-blank: false
-
   govet:
-    # Enable all analyzers
     enable-all: true
-    # Disable shadow checking (can be too strict)
     disable:
       - shadow
-
   gocyclo:
-    # Minimal code complexity to report
     min-complexity: 15
-
   dupl:
-    # Tokens count to trigger issue
     threshold: 100
-
   goconst:
-    # Minimal length of string constant
     min-len: 3
-    # Minimum occurrences count to trigger
     min-occurrences: 3
-
   misspell:
     locale: US
-
   lll:
-    # Max line length, lines longer will be reported
     line-length: 120
-
   nakedret:
-    # Make an issue if func has more lines of code than this setting and it has naked returns
     max-func-lines: 30
-
   prealloc:
-    # Report preallocation suggestions only on simple loops that have no returns/breaks/continues/gotos in them
     simple: true
     range-loops: true
     for-loops: false
-
   nolintlint:
-    # Disable to ensure that all nolint directives actually have an effect
     allow-unused: false
-    # Require an explanation for nolint directives
     require-explanation: true
-    # Require nolint directives to mention the specific linter being suppressed
     require-specific: true
-
   revive:
     rules:
       - name: blank-imports
@@ -129,41 +112,6 @@ linters-settings:
       - name: unused-parameter
       - name: unreachable-code
       - name: redefines-builtin-id
-
   gosec:
-    # To specify a set of rules to explicitly exclude
     excludes:
-      - G104 # Audit errors not checked - covered by errcheck
-
-issues:
-  # List of regexps of issue texts to exclude
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - goconst
-
-    # Exclude known linters from partially hard-vendored code
-    - path: internal/hmac/
-      text: "weak cryptographic primitive"
-      linters:
-        - gosec
-
-  # Independently from option `exclude` we use default exclude patterns,
-  # it can be disabled by this option. To list all
-  # excluded by default patterns execute `golangci-lint run --help`.
-  exclude-use-default: false
-
-  # Maximum issues count per one linter. Set to 0 to disable
-  max-issues-per-linter: 0
-
-  # Maximum count of issues with the same text. Set to 0 to disable
-  max-same-issues: 0
-
-  # Show only new issues: if there are unstaged changes or untracked files,
-  # only those changes are analyzed
-  new: false
+      - G104

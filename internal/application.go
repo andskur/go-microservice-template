@@ -1,3 +1,4 @@
+// Package internal contains the core application wiring.
 package internal
 
 import (
@@ -11,7 +12,7 @@ import (
 )
 
 // App is main microservice application instance that
-// have all necessary dependencies inside structure
+// have all necessary dependencies inside structure.
 type App struct {
 	// application configuration
 	config *config.Scheme
@@ -21,7 +22,7 @@ type App struct {
 	// TODO add all needed dependencies
 }
 
-// NewApplication create new App instance
+// NewApplication create new App instance.
 func NewApplication() (app *App, err error) {
 	ver, err := version.NewVersion()
 	if err != nil {
@@ -34,14 +35,14 @@ func NewApplication() (app *App, err error) {
 	}, nil
 }
 
-// Init initialize application and all necessary instances
+// Init initialize application and all necessary instances.
 func (app *App) Init() error {
 	// TODO add dependencies initialisations
 
 	return nil
 }
 
-// Serve start serving Application service
+// Serve start serving Application service.
 func (app *App) Serve() error {
 	// TODO add all runners that needed in separate goroutines
 
@@ -54,24 +55,24 @@ func (app *App) Serve() error {
 	return nil
 }
 
-// Stop shutdown the application
+// Stop shutdown the application.
 func (app *App) Stop() error {
 	// TODO shutdown all dependencies that need to be stopped
 
 	return nil
 }
 
-// Config return App config Scheme
+// Config return App config Scheme.
 func (app *App) Config() *config.Scheme {
 	return app.config
 }
 
-// Version return application current version
+// Version return application current version.
 func (app *App) Version() string {
 	return app.version.String()
 }
 
-// CreateAddr is create address string from host and port
+// CreateAddr is create address string from host and port.
 func CreateAddr(host string, port int) string {
 	return fmt.Sprintf("%s:%v", host, port)
 }

@@ -1,3 +1,4 @@
+// Package logger provides a shared logrus-based logger.
 package logger
 
 import (
@@ -6,16 +7,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// logger represent standard logger structure
-type logger struct {
+// Logger represents the shared logger wrapper.
+type Logger struct {
 	*logrus.Logger
 }
 
-var instance *logger
+var instance *Logger
 var once sync.Once
 
-// Log returns a singleton logger instance
-func Log() *logger {
+// Log returns a singleton logger instance.
+func Log() *Logger {
 	once.Do(func() {
 		log := logrus.New()
 		formatter := &logrus.TextFormatter{
@@ -23,7 +24,7 @@ func Log() *logger {
 		}
 		log.SetFormatter(formatter)
 
-		instance = &logger{log}
+		instance = &Logger{log}
 	})
 	return instance
 }

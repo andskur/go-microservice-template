@@ -1,3 +1,4 @@
+// Package config defines application configuration defaults and schema.
 package config
 
 // Scheme represents the application configuration scheme.

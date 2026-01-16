@@ -1,6 +1,8 @@
+// Package root defines the root CLI command.
 package root
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,13 +14,13 @@ import (
 	"microservice-template/internal"
 )
 
-// Cmd returns the root command for the application
+// Cmd returns the root command for the application.
 func Cmd(app *internal.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:              "microservice",
 		Short:            "Service Template",
 		TraverseChildren: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return initializeConfig(cmd, app.Config())
 		},
 	}
@@ -28,16 +30,15 @@ func Cmd(app *internal.App) *cobra.Command {
 	return cmd
 }
 
-// initializeConfig reads in config file and sets configuration
-// via environment variables
+// initializeConfig reads in config file and sets configuration via environment variables.
 func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFound) {
 			return fmt.Errorf("read config file: %w", err)
 		}
 	}
 
-	// set config via env vars
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 	viper.AllowEmptyEnv(true)
@@ -47,7 +48,7 @@ func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 	return viper.Unmarshal(cfg)
 }
 
-// bindFlags binds flags to the command
+// bindFlags binds flags to the command.
 func bindFlags(cmd *cobra.Command) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if !f.Changed && viper.IsSet(f.Name) {
