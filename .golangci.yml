@@ -40,7 +40,6 @@ linters:
     - gochecknoinits
     - goconst
     - gocritic
-    - ruleguard
     - gocyclo
     - goprintffuncname
     - gosec
