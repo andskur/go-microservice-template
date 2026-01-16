@@ -88,3 +88,44 @@ func TestNewVersionHandlesUnspecifiedValues(t *testing.T) {
 		t.Fatalf("unexpected version string: %q", ver.String())
 	}
 }
+
+func TestNewVersionBadDate(t *testing.T) {
+	t.Cleanup(restoreVars())
+
+	BuildDate = "bad-date"
+
+	if _, err := NewVersion(); err == nil {
+		t.Fatalf("expected error for bad date, got nil")
+	}
+}
+
+func TestIfSpecifiedMatrix(t *testing.T) {
+	t.Cleanup(restoreVars())
+
+	ServiceName = "svc"
+	CommitTag = "v1.0.0"
+	CommitSHA = unspecified
+	CommitBranch = "main"
+	OriginURL = "git@example.com/repo.git"
+	BuildDate = unspecified
+
+	ver, err := NewVersion()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if ver.IfSpecified() {
+		t.Fatalf("expected IfSpecified to be false when commit is unspecified")
+	}
+
+	CommitSHA = "cafebabe"
+
+	ver, err = NewVersion()
+	if err != nil {
+		t.Fatalf("unexpected error after setting commit: %v", err)
+	}
+
+	if !ver.IfSpecified() {
+		t.Fatalf("expected IfSpecified to be true when all fields set")
+	}
+}

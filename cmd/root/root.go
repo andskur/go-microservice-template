@@ -45,6 +45,10 @@ func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 
 	bindFlags(cmd)
 
+	if err := viper.BindPFlags(cmd.Flags()); err != nil {
+		return fmt.Errorf("bind flags: %w", err)
+	}
+
 	return viper.Unmarshal(cfg)
 }
 
