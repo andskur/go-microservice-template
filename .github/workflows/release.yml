@@ -43,6 +43,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Install golangci-lint
+        run: make lint-install
+
       - name: Run CI checks (lint)
         run: make lint
 
