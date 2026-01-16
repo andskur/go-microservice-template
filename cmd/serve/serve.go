@@ -21,17 +21,16 @@ func Cmd(app *internal.App) *cobra.Command {
 				return fmt.Errorf("application initialisation: %w", err)
 			}
 
-			defer func() {
-				if err := app.Stop(); err != nil {
-					logger.Log().Errorf("cant stop app")
-				}
-				logger.Log().Info("App stopped")
-			}()
-
 			return app.Serve()
 		},
 		PreRun: func(_ *cobra.Command, _ []string) {
 			logger.Log().Info(app.Version())
+		},
+		PostRun: func(_ *cobra.Command, _ []string) {
+			if err := app.Stop(); err != nil {
+				logger.Log().Errorf("cant stop app")
+			}
+			logger.Log().Info("App stopped")
 		},
 	}
 }

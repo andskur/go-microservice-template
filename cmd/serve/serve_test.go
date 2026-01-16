@@ -86,7 +86,7 @@ func TestCmdStopsAfterServeError(t *testing.T) {
 		t.Fatalf("expected serve error, got %v", err)
 	}
 
-	// Manually invoke PostRun to mirror cobra behavior after RunE returns an error.
+	// PostRun is still invoked in Cobra even when RunE returns an error.
 	cmd.PostRun(nil, nil)
 
 	if !app.stopCalled {
