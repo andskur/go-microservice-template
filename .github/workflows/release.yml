@@ -55,26 +55,50 @@ jobs:
       - name: Run CI checks (build)
         run: make build
 
-      - name: Determine next tag (semver patch)
+      - name: Determine next tag (semantic)
         id: next_tag
         shell: bash
         run: |
           git fetch --tags
+
           last_tag=$(git tag --list 'v[0-9]*' | sort -V | tail -n 1)
 
           if [ -z "$last_tag" ]; then
-            major=1; minor=0; patch=0
-          else
-            version=${last_tag#v}
-            IFS='.' read -r major minor patch <<< "$version"
-            : "${major:=1}"
-            : "${minor:=0}"
-            : "${patch:=0}"
+            echo "next_tag=v1.0.0" | tee -a "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          patch=$((patch + 1))
-          next_tag="v${major}.${minor}.${patch}"
+          commits=$(git log "${last_tag}..HEAD" --format='%s' || true)
 
+          bump="patch"
+          if echo "$commits" | grep -Eqi 'BREAKING CHANGE'; then
+            bump="major"
+          elif echo "$commits" | grep -Eqi '^feat(\(|:|!|$)|^feature(\(|:|!|$)'; then
+            bump="minor"
+          fi
+          if echo "$commits" | grep -Eq '^[a-zA-Z]+!:'; then
+            bump="major"
+          fi
+
+          version=${last_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+          : "${major:=1}"
+          : "${minor:=0}"
+          : "${patch:=0}"
+
+          case "$bump" in
+            major)
+              major=$((major + 1)); minor=0; patch=0
+              ;;
+            minor)
+              minor=$((minor + 1)); patch=0
+              ;;
+            *)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          next_tag="v${major}.${minor}.${patch}"
           echo "next_tag=$next_tag" | tee -a "$GITHUB_OUTPUT"
 
       - name: Create tag
