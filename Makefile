@@ -1,8 +1,8 @@
 # Set APP to the name of the application
-APP:=template-service
+APP:=microservice-template
 
 # Set APP_ENTRY_POINT to the main Go file for the application
-APP_ENTRY_POINT:=cmd/template-service.go
+APP_ENTRY_POINT:=cmd/microservice-template.go
 
 # Set BUILD_OUT_DIR to the directory where the built executable should be placed
 BUILD_OUT_DIR:=./

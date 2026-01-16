@@ -6,56 +6,12 @@ No other AGENTS.md or Cursor/Copilot rules found.
 ## Commands
 - Prefer Makefile targets when available.
 - Build: `make build` (uses ldflags for version info).
-- Build binary output: `./template-service` in repo root.
-- Run app: `make run` (invokes `go run -race cmd/template-service.go serve`).
-- Tidy modules: `make tidy`.
-- Update deps: `make update`.
-- Lint: `make lint` (golangci-lint).
-- Install linter if missing: `make lint-install`.
-- Test all: `make test` or `go test ./...`.
-- Test with coverage: `make test-coverage` (produces `coverage.out`).
-- CI: `.github/workflows/ci.yml` runs lint/test/build on PRs and main; `.github/workflows/release.yml` reruns checks on main, auto-tags incrementally, and creates a GitHub release.
-- Single package test: `go test ./internal` (replace path as needed).
-- Single test by name: `go test ./... -run TestName -count=1`.
-- Verbose test output: `go test -v ./...`.
-- Clean built binary: `make clean`.
-- Show version template at runtime: `./template-service --version`.
-- Preferred go toolchain: Go 1.21+ (module uses 1.21 if set).
-- Dockerfile builds minimal CGO-disabled binary; keep env CGO_ENABLED=0 unless needed.
+- Build binary output: `./microservice-template` in repo root.
+- Run app: `make run` (invokes `go run -race cmd/microservice-template.go serve`).
+- Show version template at runtime: `./microservice-template --version`.
+- `cmd/microservice-template.go`: entry; wires cobra root + serve, executes CLI.
+- Keep binary name driven by `APP` variable (`microservice-template`).
 
-## Project layout & code structure
-- `cmd/template-service.go`: entry; wires cobra root + serve, executes CLI.
-- `cmd/root`: root command, version template, config init via `initializeConfig` + flag/env binding.
-- `cmd/serve`: serve command; `PreRun` logs version, `RunE` calls `App.Init`/`Serve`, `PostRun` stops app.
-- `internal/application.go`: `App` struct with config/version; lifecycle `Init`/`Serve`/`Stop`; helper `CreateAddr`.
-- `config/`: defaults in `init.go`; schema in `scheme.go`.
-- `Makefile`: canonical targets for build/test/lint/tidy/run; injects versioner ldflags.
-- `Dockerfile`: minimal CGO-disabled build pipeline; honors `APP` name.
-- Tests: place alongside code in same package; keep hermetic.
-
-## Config & environment
-- Defaults set in `config/init.go`; extend with viper SetDefault.
-- Schema in `config/scheme.go`; keep exported fields with comments.
-- Config loading: viper reads config file if present; env overrides with `.`→`_` replacer.
-- Honor envs `ENV` etc; allow empty env (viper AllowEmptyEnv).
-- Keep flags/env names kebab/underscore aligned with viper mapping.
-- Prefer `PersistentPreRunE` for config initialization, return wrapped errors.
-- Avoid global mutable state; pass config through `*config.Scheme`.
-- Document required env vars in README when adding new ones.
-
-## CLI behavior
-- Root use string `microservice`; update consistently.
-- Add commands via cobra; keep Short concise.
-- Use `RunE` for error returns, not `Run`.
-- Set version template on root via `app.Version()`; keep output stable.
-- PreRun hooks can log version; PostRun should stop app gracefully.
-- Return errors with context; cobra will print.
-
-## Build & release
-- CGO disabled in Makefile build; enable only if dependency requires.
-- Ldflags from Makefile inject name/commit/tag/branch/remote/build date (now using `pkg/version`).
-- Do not hardcode version strings; rely on versioner package.
-- Keep binary name driven by `APP` variable (`template-service`).
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
 
