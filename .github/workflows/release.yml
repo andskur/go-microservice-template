@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      next_tag: ${{ steps.next_tag.outputs.next_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install golangci-lint
+        run: make lint-install
+
+      - name: Run CI checks (lint)
+        run: make lint
+
+      - name: Run CI checks (test)
+        run: make test
+
+      - name: Run CI checks (build)
+        run: make build
+
+      - name: Determine next tag
+        id: next_tag
+        shell: bash
+        run: |
+          git fetch --tags
+          last_tag=$(git tag --list 'v[0-9]*' | sort -V | tail -n 1)
+          if [ -z "$last_tag" ]; then
+            next_tag=v1
+          else
+            num=${last_tag#v}
+            next_num=$((num + 1))
+            next_tag="v${next_num}"
+          fi
+          echo "next_tag=$next_tag" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        env:
+          TAG: ${{ steps.next_tag.outputs.next_tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+
+  release:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.next_tag }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

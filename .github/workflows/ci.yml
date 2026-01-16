@@ -1,83 +1,96 @@
-name: Go CI
+name: CI
 
 on:
+  pull_request:
+    branches: ["**"]
   push:
     branches: ["main"]
-  pull_request:
-  workflow_dispatch:
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-  test:
-    name: Lint and Test Go Code
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-          cache: true
+          go-version: "1.24"
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          version: latest
-          args: --timeout=10m
-          skip-cache: true
-          skip-build-cache: true
-          skip-pkg-cache: true
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Run tests with coverage
-        run: go test ./... -coverprofile=cover.out
+      - name: Install dependencies
+        run: go mod download
 
-      - name: Check coverage thresholds
-        id: coverage
-        uses: vladopajic/go-test-coverage@v2
-        with:
-          profile: cover.out
-          local-prefix: microservice-template
-          threshold-file: 0
-          threshold-package: 0
-          threshold-total: 0
+      - name: Install golangci-lint
+        run: make lint-install
 
-      - name: Make coverage badge (main only)
-        if: github.ref == 'refs/heads/main'
-        uses: action-badges/core@0.2.2
-        with:
-          label: coverage
-          message: ${{ steps.coverage.outputs.badge-text }}
-          message-color: ${{ steps.coverage.outputs.badge-color }}
-          file-name: coverage.svg
-          badge-branch: badges
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lint
+        run: make lint
 
-  release:
-    name: Make Release
-    needs:
-      - test
-    if: ${{ github.ref == 'refs/heads/main' }}
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      release_tag: ${{ steps.tag_version.outputs.new_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.2
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          github_token: ${{ secrets.RELEASES_ACTION_GITHUB_TOKEN }}
+          go-version: "1.24"
 
-      - name: Create a GitHub release
-        uses: ncipollo/release-action@v1
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
-          token: ${{ secrets.RELEASES_ACTION_GITHUB_TOKEN }}
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Test
+        run: make test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Build
+        run: make build

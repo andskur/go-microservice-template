@@ -14,7 +14,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Install linter if missing: `make lint-install`.
 - Test all: `make test` or `go test ./...`.
 - Test with coverage: `make test-coverage` (produces `coverage.out`).
-- CI: `.github/workflows/ci.yml` runs lint/tests on PRs and pushes; releases on successful main pushes.
+- CI: `.github/workflows/ci.yml` runs lint/test/build on PRs and main; `.github/workflows/release.yml` reruns checks on main, auto-tags incrementally, and creates a GitHub release.
 - Single package test: `go test ./internal` (replace path as needed).
 - Single test by name: `go test ./... -run TestName -count=1`.
 - Verbose test output: `go test -v ./...`.
