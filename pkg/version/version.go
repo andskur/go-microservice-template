@@ -36,6 +36,8 @@ var (
 	BuildDate    = unspecified
 )
 
+const defaultTag = "v0.0.0"
+
 // Version represent git version structure.
 type Version struct {
 	Service string
@@ -62,7 +64,7 @@ func NewVersion() (ver *Version, err error) {
 
 	tag := CommitTag
 	if tag == "" || tag == unspecified {
-		tag = "v0.0.0"
+		tag = defaultTag
 	}
 
 	ver = &Version{

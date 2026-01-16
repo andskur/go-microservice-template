@@ -39,8 +39,8 @@ func TestNewVersionFallsBackToDefaultTag(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ver.Tag != "v0.0.0" {
-		t.Fatalf("expected fallback tag v0.0.0, got %s", ver.Tag)
+	if ver.Tag != defaultTag {
+		t.Fatalf("expected fallback tag %s, got %s", defaultTag, ver.Tag)
 	}
 
 	if ver.URL != "git@example.com/repo" {
@@ -76,8 +76,8 @@ func TestNewVersionHandlesUnspecifiedValues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ver.Tag != "v0.0.0" {
-		t.Fatalf("expected fallback tag v0.0.0, got %s", ver.Tag)
+	if ver.Tag != defaultTag {
+		t.Fatalf("expected fallback tag %s, got %s", defaultTag, ver.Tag)
 	}
 
 	if ver.IfSpecified() {

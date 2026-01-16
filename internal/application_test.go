@@ -3,7 +3,7 @@ package internal
 import "testing"
 
 func TestCreateAddr(t *testing.T) {
-	tests := []struct {
+	tests := []struct { //nolint:govet // field alignment not critical in test table
 		name string
 		host string
 		port int
