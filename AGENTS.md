@@ -27,11 +27,10 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Linting & formatting
 - Use `gofmt` on all Go files; do not hand-format.
-- Golangci-lint default config not checked in; rely on defaults.
-- Typical enables include `errcheck`, `gosimple`, `staticcheck`; fix violations not silenced.
-- If adding config, place at repo root as `.golangci.yml`.
-- Keep lines < 120 chars when reasonable.
-- No trailing whitespace; keep unix line endings.
+- Golangci-lint config is checked in at `.golangci.yml` with extensive enables (errcheck, govet, staticcheck, revive, misspell, bodyclose, gosec, gocyclo, dupl, etc.).
+- Custom settings: gocyclo min-complexity 15; dupl threshold 100; nakedret max 30 lines; line-length 120; errcheck checks type assertions.
+- Test files exclude some linters (gocyclo, errcheck, dupl, gosec, goconst) per config.
+- Keep lines < 120 chars when reasonable; no trailing whitespace; unix line endings.
 
 ## Imports
 - Group imports: stdlib, blank line, third-party, blank line, local (`microservice-template/...`).
@@ -68,7 +67,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Avoid global mutable singletons; inject dependencies into `App`.
 
 ## Logging
-- Use `github.com/misnaged/annales/logger`'s `Log()` accessor.
+- Use `pkg/logger.Log()` (logrus) accessor.
 - Prefer structured messages with format verbs.
 - Do not log secrets or PII.
 - Keep startup logs concise; include version once.
