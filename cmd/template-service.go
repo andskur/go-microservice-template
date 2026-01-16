@@ -3,11 +3,10 @@ package main
 import (
 	"os"
 
-	"github.com/misnaged/annales/logger"
-
 	"microservice-template/cmd/root"
 	"microservice-template/cmd/serve"
 	"microservice-template/internal"
+	"microservice-template/pkg/logger"
 )
 
 // main is the entry point of the application

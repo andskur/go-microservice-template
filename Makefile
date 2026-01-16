@@ -7,8 +7,8 @@ APP_ENTRY_POINT:=cmd/template-service.go
 # Set BUILD_OUT_DIR to the directory where the built executable should be placed
 BUILD_OUT_DIR:=./
 
-# path to versioner package
-GITVER_PKG:=github.com/misnaged/annales/versioner
+# path to version package
+GITVER_PKG:=microservice-template/pkg/version
 
 # Set GOOS and GOARCH to the current system values using the go env command
 GOOS=$(shell go env GOOS)

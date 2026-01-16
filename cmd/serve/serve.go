@@ -3,10 +3,10 @@ package serve
 import (
 	"fmt"
 
-	"github.com/misnaged/annales/logger"
 	"github.com/spf13/cobra"
 
 	"microservice-template/internal"
+	"microservice-template/pkg/logger"
 )
 
 // Cmd returns the "serve" command of the application.

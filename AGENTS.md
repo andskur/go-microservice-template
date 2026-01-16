@@ -52,7 +52,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Build & release
 - CGO disabled in Makefile build; enable only if dependency requires.
-- Ldflags from Makefile inject name/commit/tag/branch/remote/build date.
+- Ldflags from Makefile inject name/commit/tag/branch/remote/build date (now using `pkg/version`).
 - Do not hardcode version strings; rely on versioner package.
 - Keep binary name driven by `APP` variable (`template-service`).
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
@@ -97,7 +97,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Prefer `fmt.Errorf` with `%w` when wrapping.
 - Return errors; avoid panics except truly unrecoverable.
 - Log at the boundary; functions should return errors, not log + return.
-- Use `logger.Log()` with appropriate level; avoid noisy Info for errors.
+- Use `pkg/logger.Log()` (logrus) with appropriate level; avoid noisy Info for errors.
 - Include context in messages (`action: %w`).
 - Handle config file not found gracefully (already in root initializeConfig).
 - When stopping app, log underlying stop errors; do not swallow silently.

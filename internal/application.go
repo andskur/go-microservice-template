@@ -6,9 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	version "github.com/misnaged/annales/versioner"
-
 	"microservice-template/config"
+	"microservice-template/pkg/version"
 )
 
 // App is main microservice application instance that
