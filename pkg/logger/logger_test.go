@@ -21,9 +21,9 @@ func TestLogSingleton(t *testing.T) {
 
 func TestLogFormatter(t *testing.T) {
 	log := Log()
-	formatter, ok := log.Formatter.(*logrus.TextFormatter)
+	formatter, ok := log.Logger.Formatter.(*logrus.TextFormatter)
 	if !ok {
-		t.Fatalf("expected TextFormatter, got %T", log.Formatter)
+		t.Fatalf("expected TextFormatter, got %T", log.Logger.Formatter)
 	}
 	if !formatter.FullTimestamp {
 		t.Fatalf("expected FullTimestamp to be true")
