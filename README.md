@@ -27,6 +27,9 @@ Template for building Go microservices.
 ## Versioning
 - Ldflags set in `Makefile` targeting `microservice-template/pkg/version` to inject service name, tag, commit, branch, origin URL, and build date.
 
+## CI
+- GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint + tests on PRs and pushes, and creates a release on successful main branch pushes.
+
 ## Notes
 - Prefer `gofmt` and Go 1.21+.
 - Keep tests hermetic and colocated with code.
