@@ -17,7 +17,7 @@ import (
 // Cmd returns the root command for the application.
 func Cmd(app *internal.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:              "microservice",
+		Use:              "microservice-template",
 		Short:            "Service Template",
 		TraverseChildren: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {

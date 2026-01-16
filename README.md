@@ -5,9 +5,41 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
 ## Quickstart
 - Requirements: Go 1.21+ (module sets 1.23/1.24), GNU `make`.
 - Clone and create your branch: `git checkout -b feature/your-branch`.
-- Build: `make build` (binary `./template-service`).
-- Run: `make run` (invokes `go run -race cmd/template-service.go serve`).
-- Version: `./template-service --version`.
+- **Rename for your service**:
+  - Replace `microservice-template` with your module path (e.g., `github.com/yourorg/yourservice`) in `go.mod` and Go imports.
+  - Replace binary/entrypoint names: update `APP`, `APP_ENTRY_POINT`, and `GITVER_PKG` in `Makefile`; rename `cmd/microservice-template.go` accordingly.
+  - Update CLI command name in `cmd/root/root.go` (`Use: "microservice-template"`).
+  - Run `go mod tidy` after renaming.
+  - Verify: `make build` and `./<your-binary> --version`.
+
+  **Renaming examples (macOS/BSD sed):**
+  ```bash
+  # Set your values
+  MODULE="github.com/yourorg/yourservice"
+  BIN="yourservice"
+  CLI="yourservice"
+
+  # Update module
+  go mod edit -module "$MODULE"
+
+  # Update imports
+  find . -type f -name '*.go' -exec sed -i '' "s|microservice-template|$MODULE|g" {} +
+
+  # Update Makefile
+  sed -i '' "s/^APP:=microservice-template/APP:=$BIN/" Makefile
+  sed -i '' "s|^APP_ENTRY_POINT:=cmd/microservice-template.go|APP_ENTRY_POINT:=cmd/$BIN.go|" Makefile
+  sed -i '' "s|^GITVER_PKG:=microservice-template/pkg/version|GITVER_PKG:=$MODULE/pkg/version|" Makefile
+
+  # Rename entrypoint and CLI command
+  mv cmd/microservice-template.go "cmd/$BIN.go"
+  sed -i '' "s/Use: \"microservice-template\"/Use: \"$CLI\"/" cmd/root/root.go
+
+  # Tidy deps
+  go mod tidy
+  ```
+- Build: `make build` (binary `./microservice-template`).
+- Run: `make run` (invokes `go run -race cmd/microservice-template.go serve`).
+- Version: `./microservice-template --version`.
 - Lint: `make lint` (golangci-lint).
 - Test: `make test` or single test `go test ./... -run TestName -count=1`.
 - Coverage: `make test-coverage` (writes `coverage.out`).
@@ -21,6 +53,7 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
 - Makefile with race-enabled run, build, lint, test, tidy/update.
 - CI: lint/test/build on PRs and `main`; auto-tagged release on `main` if checks pass.
 - Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
+- Rename-friendly: single placeholder name `microservice-template` for binary/module/CLI.
 
 **Trade-offs**
 - No HTTP/GRPC server wired yet—skeleton only; you add runtime workloads.
@@ -28,7 +61,7 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
 - Release workflow auto-tags incrementally (`v1`, `v2`, …) and creates a GitHub release on `main` (source-only attachments).
 
 ## Project Structure
-- `cmd/template-service.go`: entrypoint; builds root command, adds `serve`, executes CLI.
+- `cmd/microservice-template.go`: entrypoint; builds root command, adds `serve`, executes CLI.
 - `cmd/root`: root command, version template, config init (`initializeConfig`), flag/env binding.
 - `cmd/serve`: `serve` command; `PreRun` logs version, `RunE` calls `App.Init`/`Serve`, `PostRun` stops app.
 - `internal/application.go`: `App` struct; lifecycle `Init`/`Serve`/`Stop`; helper `CreateAddr`.
@@ -63,9 +96,9 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
   Precedence will ensure flag > env > config file for `port` as well.
 
 ## CLI
-- Root command name: `microservice`.
+- Root command name: `microservice-template`.
 - Subcommands: `serve` (current runtime hook). Add more via `cmd/<name>` and register on root.
-- Version output: `./template-service --version` (ldflags populate `pkg/version`).
+- Version output: `./microservice-template --version` (ldflags populate `pkg/version`).
 - `serve` lifecycle: `PreRun` logs version; `RunE` should start your workloads; `PostRun` always stops app.
 - Adding a new command (example):
   ```go
@@ -85,7 +118,7 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
       }
   }
   ```
-  Register it in `cmd/template-service.go`: `rootCmd.AddCommand(health.Cmd())`.
+  Register it in `cmd/microservice-template.go`: `rootCmd.AddCommand(health.Cmd())`.
 
 ## Development Workflow
 - Format: `gofmt` (used via go tooling).
@@ -123,6 +156,7 @@ A minimal Go service template with Cobra/Viper CLI wiring, ldflags-based version
 
 ## Extending the template
 - Add config: update `Scheme`, `setDefaults`, and CLI flags; test binding like in `cmd/root/root_test.go`.
-- Add commands: create `cmd/<name>` with `cobra.Command`, register on root in `cmd/template-service.go`.
+- Add commands: create `cmd/<name>` with `cobra.Command`, register on root in `cmd/microservice-template.go`.
+  After renaming the entrypoint file (e.g., `cmd/yourservice.go`), register new commands there.
 - Add runtime logic: implement `App.Init/Serve/Stop` with proper context/shutdown handling.
 - Add tests: follow table-driven patterns; reset global state (Viper) in `t.Cleanup`.
