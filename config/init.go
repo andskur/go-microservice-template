@@ -13,6 +13,7 @@ func init() {
 }
 
 // setDefaults exposes default registration for testing.
+// Keep defaults centralized here so tests can reset viper and reapply them.
 func setDefaults() {
 	// environment - could be "local", "prod", "dev"
 	viper.SetDefault("env", "prod")

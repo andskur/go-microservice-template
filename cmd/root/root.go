@@ -31,6 +31,7 @@ func Cmd(app *internal.App) *cobra.Command {
 }
 
 // initializeConfig reads in config file and sets configuration via environment variables.
+// Env and flags are bound after config load so CLI flags override env, which override config file.
 func initializeConfig(cmd *cobra.Command, cfg *config.Scheme) error {
 	if err := viper.ReadInConfig(); err != nil {
 		var configFileNotFound viper.ConfigFileNotFoundError

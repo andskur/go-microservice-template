@@ -27,6 +27,7 @@ func Cmd(app *internal.App) *cobra.Command {
 			logger.Log().Info(app.Version())
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
+			// PostRun is used so Stop executes even if RunE errors; Cobra always calls PostRun.
 			if err := app.Stop(); err != nil {
 				logger.Log().Errorf("cant stop app")
 			}
