@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"microservice-template/config"
+	"microservice-template/internal"
 )
 
 func resetViper(t *testing.T) {
@@ -25,6 +26,18 @@ func newTestCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("env", "", "environment")
 	return cmd
+}
+
+func TestCmdSetsVersionTemplate(t *testing.T) {
+	app, err := internal.NewApplication()
+	if err != nil {
+		t.Fatalf("failed to create app: %v", err)
+	}
+
+	cmd := Cmd(app)
+	if cmd.VersionTemplate() == "" {
+		t.Fatalf("expected version template to be set")
+	}
 }
 
 func TestInitializeConfig_IgnoresMissingFile(t *testing.T) {
@@ -60,8 +73,6 @@ func TestInitializeConfig_PropagatesReadError(t *testing.T) {
 		t.Fatalf("expected error for invalid config path")
 	}
 	if !errors.Is(err, os.ErrInvalid) && !errors.Is(err, os.ErrPermission) && !errors.Is(err, os.ErrNotExist) {
-		// viper may wrap a variety of underlying errors; ensure it's not a nil or ignored case
-		// just assert it's not the ConfigFileNotFound path by type check
 		var cfgNotFound viper.ConfigFileNotFoundError
 		if errors.As(err, &cfgNotFound) {
 			t.Fatalf("expected real error, got ConfigFileNotFoundError: %v", err)
@@ -76,10 +87,8 @@ func TestInitializeConfig_BindsEnvAndFlags(t *testing.T) {
 	cfg := &config.Scheme{}
 	cmd := newTestCmd()
 
-	// env should set when flag not provided
 	t.Setenv("ENV", "prod-env")
 
-	// bind flags inside initializeConfig
 	if err := initializeConfig(cmd, cfg); err != nil {
 		t.Fatalf("initializeConfig returned error: %v", err)
 	}
@@ -88,12 +97,11 @@ func TestInitializeConfig_BindsEnvAndFlags(t *testing.T) {
 		t.Fatalf("expected env from ENV, got %q", cfg.Env)
 	}
 
-	// Ensure viper state reset before second call
+	// Reset and ensure flag wins over env
 	resetViper(t)
 	cfg.Env = ""
 	cmd = newTestCmd()
 
-	// If flag is set, it should override env
 	if err := cmd.Flags().Set("env", "flag-env"); err != nil {
 		t.Fatalf("failed setting flag: %v", err)
 	}
@@ -106,5 +114,23 @@ func TestInitializeConfig_BindsEnvAndFlags(t *testing.T) {
 
 	if cfg.Env != "flag-env" {
 		t.Fatalf("expected env from flag, got %q", cfg.Env)
+	}
+}
+
+func TestBindFlagsSetsDefaultsFromViper(t *testing.T) {
+	resetViper(t)
+	t.Cleanup(func() { resetViper(t) })
+
+	cmd := newTestCmd()
+	viper.Set("env", "from-viper")
+
+	bindFlags(cmd)
+
+	val, err := cmd.Flags().GetString("env")
+	if err != nil {
+		t.Fatalf("unexpected error getting flag: %v", err)
+	}
+	if val != "from-viper" {
+		t.Fatalf("expected flag to be set from viper, got %q", val)
 	}
 }

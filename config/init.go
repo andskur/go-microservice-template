@@ -9,6 +9,11 @@ import (
 //
 //nolint:gochecknoinits // configuration defaults are registered at package load.
 func init() {
+	setDefaults()
+}
+
+// setDefaults exposes default registration for testing.
+func setDefaults() {
 	// environment - could be "local", "prod", "dev"
 	viper.SetDefault("env", "prod")
 
