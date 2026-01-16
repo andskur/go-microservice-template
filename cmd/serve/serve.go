@@ -1,31 +1,33 @@
+// Package serve defines the CLI serve command.
 package serve
 
 import (
 	"fmt"
 
-	"github.com/misnaged/annales/logger"
 	"github.com/spf13/cobra"
 
 	"microservice-template/internal"
+	"microservice-template/pkg/logger"
 )
 
 // Cmd returns the "serve" command of the application.
-// This command is responsible for initializing and
+// This command is responsible for initializing and running the service.
 func Cmd(app *internal.App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
 		Short: "Run Application",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := app.Init(); err != nil {
 				return fmt.Errorf("application initialisation: %w", err)
 			}
 
 			return app.Serve()
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
+		PreRun: func(_ *cobra.Command, _ []string) {
 			logger.Log().Info(app.Version())
 		},
-		PostRun: func(cmd *cobra.Command, args []string) {
+		PostRun: func(_ *cobra.Command, _ []string) {
+			// PostRun is used so Stop executes even if RunE errors; Cobra always calls PostRun.
 			if err := app.Stop(); err != nil {
 				logger.Log().Errorf("cant stop app")
 			}

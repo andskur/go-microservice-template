@@ -1,16 +1,16 @@
+// Package main provides the application entrypoint.
 package main
 
 import (
 	"os"
 
-	"github.com/misnaged/annales/logger"
-
 	"microservice-template/cmd/root"
 	"microservice-template/cmd/serve"
 	"microservice-template/internal"
+	"microservice-template/pkg/logger"
 )
 
-// main is the entry point of the application
+// main is the entry point of the application.
 // It creates an instance of the internal application and adds
 // the "serve" command to the root command. Then it executes
 // the root command. If any error occurs, it logs the error and

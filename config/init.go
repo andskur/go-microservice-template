@@ -1,11 +1,20 @@
+// Package config defines application configuration defaults and schema.
 package config
 
 import (
 	"github.com/spf13/viper"
 )
 
-// init initialize default config params
+// init initialize default config params.
+//
+//nolint:gochecknoinits // configuration defaults are registered at package load.
 func init() {
+	setDefaults()
+}
+
+// setDefaults exposes default registration for testing.
+// Keep defaults centralized here so tests can reset viper and reapply them.
+func setDefaults() {
 	// environment - could be "local", "prod", "dev"
 	viper.SetDefault("env", "prod")
 
