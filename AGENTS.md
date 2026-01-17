@@ -11,7 +11,9 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Show version template at runtime: `./microservice-template --version`.
 - `cmd/microservice-template.go`: entry; wires cobra root + serve, executes CLI.
 - Keep binary name driven by `APP` variable (`microservice-template`).
-
+- Rename project: `make rename NEW_NAME=my-service` (validates name, prompts, updates module/imports/Makefile/Dockerfile/docs/CLI).
+- Rename validation: lowercase letters, numbers, hyphens, optional path segments (`my-service`, `github.com/org/my-service`).
+- After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
 
@@ -88,7 +90,8 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Documentation
 - Update README when adding features, flags, or envs.
-- Keep AGENTS.md in sync with build/test changes.
+- Keep AGENTS.md in sync with build/test/tool changes.
+- If adding scripts to `scripts/`, document purpose and invocation here and in README.
 - Comment exported types and functions; keep TODOs actionable.
 - Keep examples minimal and runnable where possible.
 
@@ -100,9 +103,47 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep public surface area lean; expose only needed types.
 - Avoid over-engineering; simplicity first.
 
+## Development Workflow
+- Format: `gofmt` (used via go tooling).
+- Lint: `make lint` (golangci-lint; see `.golangci.yml`).
+- Tests: `make test` or `go test ./...`; single test example `go test ./cmd/root -run TestInitializeConfig -count=1`.
+- Build: `make build` (CGO disabled; ldflags inject version info).
+- Deps: `make tidy` after changes; `make update` to bump modules.
+
+## Docker
+- Dockerfile: multi-stage build (golang:1.24 builder → scratch); invokes `make build`.
+- Binary name in Dockerfile COPY/ENTRYPOINT must match Makefile `APP` variable.
+- Current binary: `/microservice-template` (synced with `APP:=microservice-template`).
+- `make rename` updates Dockerfile automatically.
+- Build: `docker build -t microservice-template .`
+- Run: `docker run --rm microservice-template` (defaults to `serve`).
+- Best practices: use `.dockerignore` to reduce context; multi-stage keeps final image minimal.
+- Cross-compilation: override `GOOS`/`GOARCH` on `make build` before docker build if needed.
+
+## Scripts
+- `scripts/rename.sh`: automated project rename; invoked via `make rename NEW_NAME=...`.
+- Validates Go module naming; prompts for confirmation; updates go.mod, imports, Makefile vars, entrypoint, CLI `Use`, Dockerfile, docs; optional git remote update; runs `go mod tidy`.
+- New scripts: add to `scripts/`, make executable, document purpose and invocation here and in README.
+
+## CI/CD
+- Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
+  - CI: lint/test/build on PRs and `main` via `make lint`, `make test`, `make build`.
+  - Release: reruns lint/test/build, auto-tags incrementally (`v1`, `v2`, …), creates GitHub release on `main`.
+- Branch protection recommended: require CI checks before merge; limit direct pushes to `main`.
+
+## Versioning
+- `Makefile` injects name/tag/commit/branch/remote/build date into `pkg/version` via ldflags.
+- `pkg/version` formats multi-line version output; handles unspecified values.
+
+## Extending the template
+- Add config: update `config/scheme.go`, defaults in `config/init.go`, bind flags in `cmd/root`; test bindings.
+- Add commands: create `cmd/<name>` with cobra.Command, register on root in entrypoint.
+- Add runtime logic: implement `App.Init/Serve/Stop` with proper shutdown; use contexts.
+- Add tests: table-driven, reset globals in `t.Cleanup`.
+
 ## When unsure
 - Ask for clarification via issues/PR description.
 - Default to Go community conventions when unspecified.
 - Keep changes minimal and reversible.
 - Run lint/tests before submitting changes.
-- If adding tools or scripts, document invocation in this file.
+- If adding tools or scripts to `scripts/`, document invocation and purpose in this file.

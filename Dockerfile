@@ -1,5 +1,5 @@
 # Use the latest version of Go as the base image
-FROM golang:1.23 AS base
+FROM golang:1.24 AS base
 
 # Install needed dependencies for base image and update certs
 RUN apt-get update \
@@ -31,7 +31,8 @@ FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the built executable from the builder image
-COPY --from=builder /app/template-service /template-service
+COPY --from=builder /app/microservice-template /microservice-template
 
 # Set the entrypoint to the executable
-ENTRYPOINT ["/template-service", "serve"]
+ENTRYPOINT ["/microservice-template"]
+CMD ["serve"]
