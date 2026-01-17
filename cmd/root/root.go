@@ -25,7 +25,8 @@ func Cmd(app *internal.App) *cobra.Command {
 		},
 	}
 
-	cmd.SetVersionTemplate(app.Version())
+	cmd.Version = app.Version()
+	cmd.SetVersionTemplate("{{printf \"%s\" .Version}}\n")
 
 	return cmd
 }

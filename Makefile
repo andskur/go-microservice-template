@@ -76,3 +76,12 @@ lint:
 # The lint-install target installs golangci-lint if not already installed
 lint-install:
 	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+
+.PHONY: rename
+rename:
+ifndef NEW_NAME
+	@echo "Error: NEW_NAME parameter is required"
+	@echo "Usage: make rename NEW_NAME=my-new-service"
+	@exit 1
+endif
+	@bash scripts/rename.sh "$(NEW_NAME)"
