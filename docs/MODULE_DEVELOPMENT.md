@@ -381,4 +381,4 @@ internal/
 - Module interface: `internal/module/module.go`
 - Module manager: `internal/module/manager.go`
 - Configuration schema: `config/scheme.go`
-- Example config: `config.example.yaml`
+- Configuration defaults: `config/init.go`

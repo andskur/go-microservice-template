@@ -48,7 +48,7 @@ The template includes configuration placeholders for common modules:
 
 ### Enabling Modules
 
-Modules are configured in `config.yaml` (see `config.example.yaml` for reference):
+Modules are configured in `config.yaml`:
 
 ```yaml
 database:
@@ -58,6 +58,8 @@ database:
   port: 5432
   # ... other settings
 ```
+
+See `config/scheme.go` for example module configuration structures.
 
 ### Adding Custom Modules
 
@@ -120,7 +122,6 @@ go-microservice-template/
 │
 ├── .dockerignore           # Docker build context exclusions
 ├── .golangci.yml           # Linter configuration (extensive rule set)
-├── config.example.yaml     # Example configuration file (NEW)
 ├── Dockerfile              # Multi-stage build (golang:1.24 -> scratch)
 ├── Makefile                # Build targets: build, run, test, lint, tidy, update
 ├── LICENSE                 # MIT License
