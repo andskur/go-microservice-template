@@ -48,6 +48,65 @@ tidy:
 update:
 	go get -u ./...
 
+# Migration configuration
+MIGRATIONS_DIR := ./db/migrations
+
+# Default database connection values (override via env vars)
+DATABASE_HOST ?= localhost
+DATABASE_PORT ?= 5432
+DATABASE_USER ?= dev
+DATABASE_PASSWORD ?= dev
+DATABASE_NAME ?= microservice_dev
+DATABASE_SSL_MODE ?= disable
+
+# Construct DATABASE_URL from parts
+DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
+
+.PHONY: migrate-install
+migrate-install:
+	@which migrate > /dev/null || (echo "Installing golang-migrate..." && go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest)
+
+.PHONY: migrate-create
+migrate-create:
+ifndef NAME
+	@echo "Error: NAME parameter is required"
+	@echo "Usage: make migrate-create NAME=add_user_roles"
+	@exit 1
+endif
+	@migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
+	@echo "Created migration files in $(MIGRATIONS_DIR)/"
+
+.PHONY: migrate-up
+migrate-up:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
+	@echo "Migrations applied successfully"
+
+.PHONY: migrate-down
+migrate-down:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
+	@echo "Last migration rolled back"
+
+.PHONY: migrate-force
+migrate-force:
+ifndef VERSION
+	@echo "Error: VERSION parameter is required"
+	@echo "Usage: make migrate-force VERSION=2"
+	@exit 1
+endif
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" force $(VERSION)
+	@echo "Migration version forced to $(VERSION)"
+
+.PHONY: migrate-version
+migrate-version:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" version
+
+.PHONY: migrate-drop
+migrate-drop:
+	@echo "WARNING: This will drop all tables! Press Ctrl+C to cancel, Enter to continue..."
+	@read _
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" drop -f
+	@echo "All migrations dropped"
+
 # The run target runs the application with race detection enabled
 run:
 	GODEBUG=xray_ptrace=1 go run -race $(APP_ENTRY_POINT) serve

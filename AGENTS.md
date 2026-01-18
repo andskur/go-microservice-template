@@ -107,13 +107,25 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Models use go-pg struct tags (`pg:"column"`) and hooks (`BeforeInsert`, `BeforeUpdate`, `AfterSelect`) for UUID generation, status conversion, timestamps.
 - Status enums: use dual fields (`Status UserStatus pg:"-"` + `StatusSQL string pg:"status,use_zero"`); hooks convert between enum and string.
 - UUID generation: handled in `BeforeInsert` if UUID is nil; ensures every insert has a UUID.
-- Timestamps: DB defaults for `created_at`; hooks update `updated_at` on updates.
+- Timestamps: DB defaults for `created_at`; DB trigger updates `updated_at` on row updates; Go hooks also set `updated_at` for defense in depth.
+- Migrations: use `golang-migrate/migrate` via Makefile; migrations in `db/migrations/` dir; create with `make migrate-create NAME=<name>`; run with `make migrate-up`.
 - Connection config: `pg.Options` uses `database.host`, `database.port`, `database.user`, `database.password`, `database.name`, pooling via `max_open_conns` and `max_idle_conns`.
 - Health check: `SELECT 1` via `db.WithContext(ctx).Exec` in module `HealthCheck`.
 - Graceful shutdown: `db.Close()` in module `Stop`; guard nil before closing.
 - Query patterns: `db.Model(model).Column("table.*").Where(...).Select()` for reads; `.Returning("*").Insert()` for creates.
 - Error handling: wrap with context (`fmt.Errorf("action: %w", err)`); check `pg.ErrNoRows` for not-found.
 - UserGetter pattern: enum with `Get(query *orm.Query, model *Model)`; apply `WherePK()` or `Where()`.
+
+### Database Migrations
+- Migrations managed by `golang-migrate/migrate` CLI tool; install via `make migrate-install`.
+- Migration files live in `db/migrations/` with sequential numbering (`000001`, `000002`, ...).
+- Each migration has `.up.sql` (forward) and `.down.sql` (rollback) files.
+- Schema uses PostgreSQL ENUM `user_status` ('active', 'deleted'); DB trigger updates `updated_at` column.
+- Create migrations with `make migrate-create NAME=<descriptive_name>`; always test down migrations.
+- Apply migrations with `make migrate-up`; rollback with `make migrate-down`; check version with `make migrate-version`; recover with `make migrate-force VERSION=<n>`.
+- Never modify applied migrations; create new migrations to fix issues.
+- Use `IF EXISTS`/`IF NOT EXISTS` for idempotent migrations safe to re-run.
+- Production: run migrations before app startup or as separate deployment job.
 
 ### Adding a New Module
 1. Define config struct in `config/scheme.go` when the module is configurable; skip if always-on.

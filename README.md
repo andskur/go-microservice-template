@@ -35,64 +35,21 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 ## Project Structure (abridged)
 ```
 go-microservice-template/
-│
-├── .github/workflows/
-│   ├── ci.yml              # CI: lint, test, build on PRs and main
-│   └── release.yml         # Release: auto-tag and GitHub release on main
-│
-├── cmd/                    # Command-line interface
-│   ├── microservice-template.go  # Main entry; builds root command and executes CLI
-│   ├── root/               # Root command, version template, config initialization
-│   │   ├── root.go
-│   │   └── root_test.go
-│   └── serve/              # Serve command; lifecycle hooks (PreRun/RunE/PostRun)
-│       ├── serve.go
-│       └── serve_test.go
-│
-├── config/                 # Configuration management
-│   ├── init.go             # Viper defaults (env=prod)
-│   ├── scheme.go           # Configuration structure definition
-│   └── init_test.go
-│
-├── docs/                   # Documentation
-│   └── MODULE_DEVELOPMENT.md  # Module development guide
-│
-├── internal/               # Private application code
-│   ├── module/             # Module system
-│   │   ├── module.go       # Module interface definition
-│   │   ├── manager.go      # Module lifecycle manager
-│   │   └── manager_test.go
-│   ├── models/             # Domain models (User, statuses, validation)
-│   │   ├── user.go
-│   │   ├── user_status.go
-│   │   ├── validation_error.go
-│   │   └── *_test.go
-│   ├── application.go      # App struct with module orchestration
-│   └── application_test.go
-│
-├── pkg/                    # Public reusable packages
-│   ├── logger/             # Logrus singleton for structured logging
-│   │   ├── logger.go
-│   │   └── logger_test.go
-│   └── version/            # Version metadata injected via ldflags
-│       ├── version.go
-│       └── version_test.go
-│
-├── scripts/                # Automation scripts
-│   └── rename.sh           # Automated project rename script
-│
-├── .dockerignore           # Docker build context exclusions
-├── .golangci.yml           # Linter configuration (extensive rule set)
-├── Dockerfile              # Multi-stage build (golang:1.24 -> scratch)
-├── Makefile                # Build targets: build, run, test, lint, tidy, update
-├── LICENSE                 # MIT License
-├── README.md               # Project documentation
-├── AGENTS.md               # Development guidelines
-├── go.mod                  # Go module definition
-└── go.sum                  # Dependency checksums
+├── cmd/                    # CLI entry + commands
+├── config/                 # Viper defaults and scheme
+├── db/migrations/          # Database migration files (golang-migrate)
+├── docs/                   # Additional guides
+├── internal/               # Modules, models, application wiring
+├── pkg/                    # Reusable packages (logger, version)
+├── scripts/                # Automation scripts (rename)
+├── .github/workflows/      # CI/CD pipelines
+├── Dockerfile, Makefile    # Build/run/lint/test helpers
+├── README.md, AGENTS.md    # Docs and guidelines
+└── go.mod, go.sum          # Dependencies
 ```
 
 ## Module System
+
 
 This template uses a **module-based architecture** for optional components. Modules provide a standard lifecycle (Init → Start → Stop) and can be enabled/disabled via configuration.
 
@@ -136,7 +93,7 @@ See `config/scheme.go` for configuration structure definitions.
 
 ### Database Setup
 
-The repository module requires PostgreSQL when enabled. Ensure you have PostgreSQL running locally or in a container.
+The repository module requires PostgreSQL when enabled.
 
 **Quick start with Docker:**
 ```bash
@@ -148,20 +105,24 @@ docker run --name postgres-dev \
   -d postgres:16-alpine
 ```
 
-**Create users table:**
-```sql
-CREATE TABLE users (
-    uuid UUID PRIMARY KEY,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    avatar VARCHAR(500),
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
+**Install migration tool (one-time):**
+```bash
+make migrate-install
+```
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_status ON users(status);
+**Run migrations:**
+```bash
+# Apply all pending migrations
+make migrate-up
+
+# Check current migration version
+make migrate-version
+```
+
+**Create new migration:**
+```bash
+make migrate-create NAME=add_user_roles
+# Edit the generated files in db/migrations/
 ```
 
 **Configure via environment variables:**
@@ -176,12 +137,28 @@ export DATABASE_PASSWORD=dev
 export DATABASE_SSL_MODE=disable
 ```
 
-**Migration tools** (optional):
-- [golang-migrate/migrate](https://github.com/golang-migrate/migrate) - Recommended for production
-- [go-pg/migrations](https://github.com/go-pg/migrations) - Native go-pg migrations
-- SQL scripts - Simple approach for templates/prototypes
+**Migration management:**
+- Migrations live in `db/migrations/` directory
+- Numbered sequentially: `000001_name.up.sql`, `000001_name.down.sql`
+- Use `make migrate-create NAME=<name>` to create migration pairs
+- Use `make migrate-up` to apply pending migrations
+- Use `make migrate-down` to rollback last migration
+- Use `make migrate-force VERSION=<n>` to recover from dirty state
+- Use `make migrate-version` to check current migration version
+- Use `make migrate-drop` to drop all tables (with confirmation prompt)
 
-For production deployments, use a migration tool to manage schema changes over time.
+**Available migration targets:**
+```bash
+make migrate-install      # Install golang-migrate CLI
+make migrate-create       # Create new migration (requires NAME=)
+make migrate-up           # Apply all pending migrations
+make migrate-down         # Rollback last migration
+make migrate-force        # Force migration version (requires VERSION=)
+make migrate-version      # Show current migration version
+make migrate-drop         # Drop all tables (⚠️ DANGER - requires confirmation)
+```
+
+For production deployments, run migrations before starting the application or use a separate migration job in your deployment pipeline.
 
 ### Adding Custom Modules
 
