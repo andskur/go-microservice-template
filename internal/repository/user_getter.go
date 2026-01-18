@@ -2,6 +2,10 @@ package repository
 
 import (
 	"fmt"
+
+	"github.com/go-pg/pg/v10/orm"
+
+	"microservice-template/internal/models"
 )
 
 // UserGetter represents available user query strategies.
@@ -37,18 +41,15 @@ func (g UserGetter) Validate() error {
 
 // Get applies the getter to a database query.
 // This is used to add WHERE clauses based on the getter type.
-//
-// Example implementation (when go-pg is added):
-//   func (g UserGetter) Get(query *orm.Query, model *models.User) error {
-//       switch g {
-//       case UserUUID:
-//           query.WherePK()
-//       case Email:
-//           query.Where(fmt.Sprintf("%s = ?", g.String()), model.Email)
-//       default:
-//           return fmt.Errorf("unsupported user getter: %s", g)
-//       }
-//       return nil
-//   }
-//
-// TODO: Uncomment and implement when go-pg and models are added.
+func (g UserGetter) Get(query *orm.Query, model *models.User) error {
+	switch g {
+	case UserUUID:
+		query.WherePK()
+	case Email:
+		query.Where(fmt.Sprintf("%s = ?", g.String()), model.Email)
+	default:
+		return fmt.Errorf("unsupported user getter: %s", g)
+	}
+
+	return nil
+}

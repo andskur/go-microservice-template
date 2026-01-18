@@ -32,7 +32,7 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
 - Rename-friendly: single placeholder name with automated `make rename` target.
 
-## Project Structure
+## Project Structure (abridged)
 ```
 go-microservice-template/
 │
@@ -134,6 +134,54 @@ database:
 
 See `config/scheme.go` for configuration structure definitions.
 
+### Database Setup
+
+The repository module requires PostgreSQL when enabled. Ensure you have PostgreSQL running locally or in a container.
+
+**Quick start with Docker:**
+```bash
+docker run --name postgres-dev \
+  -e POSTGRES_USER=dev \
+  -e POSTGRES_PASSWORD=dev \
+  -e POSTGRES_DB=microservice_dev \
+  -p 5432:5432 \
+  -d postgres:16-alpine
+```
+
+**Create users table:**
+```sql
+CREATE TABLE users (
+    uuid UUID PRIMARY KEY,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    avatar VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_status ON users(status);
+```
+
+**Configure via environment variables:**
+```bash
+export DATABASE_ENABLED=true
+export DATABASE_DRIVER=postgres
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
+export DATABASE_NAME=microservice_dev
+export DATABASE_USER=dev
+export DATABASE_PASSWORD=dev
+export DATABASE_SSL_MODE=disable
+```
+
+**Migration tools** (optional):
+- [golang-migrate/migrate](https://github.com/golang-migrate/migrate) - Recommended for production
+- [go-pg/migrations](https://github.com/go-pg/migrations) - Native go-pg migrations
+- SQL scripts - Simple approach for templates/prototypes
+
+For production deployments, use a migration tool to manage schema changes over time.
 
 ### Adding Custom Modules
 
@@ -170,10 +218,10 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
   Register it in `cmd/microservice-template.go`: `rootCmd.AddCommand(health.Cmd())`.
 
 ## Models & Enums
-- Location: `internal/models` with pure data structs (no DB hooks/tags); keep DB concerns (tags/hooks/status string fields, timestamps) in repositories.
+- Location: `internal/models` with go-pg struct tags/hooks for database integration.
 - Validation: implement `Validate() error` and return `*models.ValidationError` (`Field`, `Message`) for structured errors.
 - Enums: typed ints with `String()` and case-insensitive `UserStatusFromString()`; add proto/JWT conversions later if needed.
-- Defaults: set in repositories/services (e.g., status/timestamps); models stay lean.
+- Hooks: `BeforeInsert`/`BeforeUpdate` convert enums to strings and ensure UUID/timestamps; `AfterSelect` converts strings back to enums.
 
 ### Example: User Model
 ```go
@@ -266,64 +314,19 @@ func WidgetStateFromString(v string) (WidgetState, error) {
 ## Limitations
 This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal.
 
-## Project Structure
+## Project Structure (abridged)
 ```
 go-microservice-template/
-│
-├── .github/workflows/
-│   ├── ci.yml              # CI: lint, test, build on PRs and main
-│   └── release.yml         # Release: auto-tag and GitHub release on main
-│
-├── cmd/                    # Command-line interface
-│   ├── microservice-template.go  # Main entry; builds root command and executes CLI
-│   ├── root/               # Root command, version template, config initialization
-│   │   ├── root.go
-│   │   └── root_test.go
-│   └── serve/              # Serve command; lifecycle hooks (PreRun/RunE/PostRun)
-│       ├── serve.go
-│       └── serve_test.go
-│
-├── config/                 # Configuration management
-│   ├── init.go             # Viper defaults (env=prod)
-│   ├── scheme.go           # Configuration structure definition
-│   └── init_test.go
-│
-├── docs/                   # Documentation
-│   └── MODULE_DEVELOPMENT.md  # Module development guide
-│
-├── internal/               # Private application code
-│   ├── module/             # Module system
-│   │   ├── module.go       # Module interface definition
-│   │   ├── manager.go      # Module lifecycle manager
-│   │   └── manager_test.go
-│   ├── models/             # Domain models (User, statuses, validation)
-│   │   ├── user.go
-│   │   ├── user_status.go
-│   │   ├── validation_error.go
-│   │   └── *_test.go
-│   ├── application.go      # App struct with module orchestration
-│   └── application_test.go
-│
-├── pkg/                    # Public reusable packages
-│   ├── logger/             # Logrus singleton for structured logging
-│   │   ├── logger.go
-│   │   └── logger_test.go
-│   └── version/            # Version metadata injected via ldflags
-│       ├── version.go
-│       └── version_test.go
-│
-├── scripts/                # Automation scripts
-│   └── rename.sh           # Automated project rename script
-│
-├── .dockerignore           # Docker build context exclusions
-├── .golangci.yml           # Linter configuration (extensive rule set)
-├── Dockerfile              # Multi-stage build (golang:1.24 -> scratch)
-├── Makefile                # Build targets: build, run, test, lint, tidy, update
-├── LICENSE                 # MIT License
-├── README.md               # Project documentation
-├── AGENTS.md               # Development guidelines
-├── go.mod                  # Go module definition
-└── go.sum                  # Dependency checksums
+├── cmd/                    # CLI entry + commands
+├── config/                 # Viper defaults and scheme
+├── docs/                   # Additional guides
+├── internal/               # Modules, models, application wiring
+├── pkg/                    # Reusable packages (logger, version)
+├── scripts/                # Automation scripts (rename)
+├── .github/workflows/      # CI/CD pipelines
+├── Dockerfile, Makefile    # Build/run/lint/test helpers
+├── README.md, AGENTS.md    # Docs and guidelines
+└── go.mod, go.sum          # Dependencies
 ```
 
 ## Configuration

@@ -1,6 +1,8 @@
 package models
 
 import (
+	"context"
+	"fmt"
 	"regexp"
 	"time"
 
@@ -8,32 +10,19 @@ import (
 )
 
 // User represents a user in the system.
-// This is a pure data model without database-specific annotations.
-//
-// TODO: Add go-pg tags and hooks when integrating database:
-//   - tableName struct{} `pg:"users,discard_unknown_columns"`
-//   - StatusSQL string `pg:"status"` with Status `pg:"-"`
-//   - BeforeInsert hook for UUID generation, timestamp setting, status conversion
-//   - BeforeUpdate hook for timestamp updates, status conversion
-//   - AfterSelect hook for status enum conversion from StatusSQL
-//
-// TODO: Add conversion methods when integrating:
-//   - ToJWT() map[string]interface{} for JWT claims generation
-//   - Proto() *proto.User for gRPC protocol buffer conversion
-//   - UserFromProto(*proto.User) *User helper for inbound proto messages
-//   - UsersToProto([]*User) []*proto.User for slice conversions
-//
-// User represents a user in the system.
 //
 //nolint:govet // field alignment kept for readability and conventional ordering
 type User struct {
-	UUID      uuid.UUID
-	Status    UserStatus
-	Email     string
-	Name      string
-	Avatar    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	tableName struct{} `pg:"users,discard_unknown_columns"` //nolint:unused // go-pg table marker
+
+	UUID      uuid.UUID  `pg:"uuid,pk,type:uuid"`
+	Status    UserStatus `pg:"-"`
+	StatusSQL string     `pg:"status,use_zero"`
+	Email     string     `pg:"email,unique,notnull"`
+	Name      string     `pg:"name,notnull"`
+	Avatar    string     `pg:"avatar"`
+	CreatedAt time.Time  `pg:"created_at,notnull,default:now()"`
+	UpdatedAt time.Time  `pg:"updated_at,notnull,default:now()"`
 }
 
 // emailRegex is a basic email validation pattern.
@@ -61,10 +50,57 @@ func (u *User) Validate() error {
 		return newValidationError("name", "is required")
 	}
 
-	// Validate status is a known enum value
 	if u.Status < UserActive || u.Status >= userStatusUnsupported {
 		return newValidationError("status", "invalid value")
 	}
+
+	return nil
+}
+
+// BeforeInsert prepares the user before insertion into the database.
+// It generates a UUID if missing and converts the Status enum to its string form.
+func (u *User) BeforeInsert(ctx context.Context) (context.Context, error) {
+	if u.UUID == uuid.Nil {
+		newUUID, err := uuid.NewV4()
+		if err != nil {
+			return ctx, fmt.Errorf("generate UUID: %w", err)
+		}
+		u.UUID = newUUID
+	}
+
+	status := u.Status.String()
+	if status == "" {
+		return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+	}
+
+	u.StatusSQL = status
+
+	return ctx, nil
+}
+
+// BeforeUpdate prepares the user before update in the database.
+// It converts the Status enum to its string form and updates the timestamp.
+func (u *User) BeforeUpdate(ctx context.Context) (context.Context, error) {
+	status := u.Status.String()
+	if status == "" {
+		return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+	}
+
+	u.StatusSQL = status
+	u.UpdatedAt = time.Now()
+
+	return ctx, nil
+}
+
+// AfterSelect processes the user after retrieval from the database.
+// It converts the StatusSQL string back to the Status enum.
+func (u *User) AfterSelect(_ context.Context) error {
+	status, err := UserStatusFromString(u.StatusSQL)
+	if err != nil {
+		return fmt.Errorf("parse user status: %w", err)
+	}
+
+	u.Status = status
 
 	return nil
 }

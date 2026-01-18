@@ -98,8 +98,22 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep modules focused and single-purpose; make Init() idempotent.
 - Use goroutines in Start() for background work; respect context timeout in Stop().
 - HealthCheck() must be fast (< 2s); log all lifecycle events.
-- Models live in `internal/models` and stay pure (no DB hooks/tags); use typed enums with String/FromString helpers and structured validation errors (`ValidationError` with Field/Message).
+- Models live in `internal/models` and stay pure (no DB hooks/tags) when DB is not in use; when database is enabled with go-pg, models include go-pg struct tags and hooks for UUID/status/timestamps.
 - See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
+
+### Repository Layer with go-pg
+- Repository module wraps `*pg.DB` connection and implements `IRepository` interface.
+- Located in `internal/repository/`; registered only when `database.enabled=true`.
+- Models use go-pg struct tags (`pg:"column"`) and hooks (`BeforeInsert`, `BeforeUpdate`, `AfterSelect`) for UUID generation, status conversion, timestamps.
+- Status enums: use dual fields (`Status UserStatus pg:"-"` + `StatusSQL string pg:"status,use_zero"`); hooks convert between enum and string.
+- UUID generation: handled in `BeforeInsert` if UUID is nil; ensures every insert has a UUID.
+- Timestamps: DB defaults for `created_at`; hooks update `updated_at` on updates.
+- Connection config: `pg.Options` uses `database.host`, `database.port`, `database.user`, `database.password`, `database.name`, pooling via `max_open_conns` and `max_idle_conns`.
+- Health check: `SELECT 1` via `db.WithContext(ctx).Exec` in module `HealthCheck`.
+- Graceful shutdown: `db.Close()` in module `Stop`; guard nil before closing.
+- Query patterns: `db.Model(model).Column("table.*").Where(...).Select()` for reads; `.Returning("*").Insert()` for creates.
+- Error handling: wrap with context (`fmt.Errorf("action: %w", err)`); check `pg.ErrNoRows` for not-found.
+- UserGetter pattern: enum with `Get(query *orm.Query, model *Model)`; apply `WherePK()` or `Where()`.
 
 ### Adding a New Module
 1. Define config struct in `config/scheme.go` when the module is configurable; skip if always-on.
@@ -168,7 +182,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Add config: update `config/scheme.go`, defaults in `config/init.go`, bind flags in `cmd/root`; test bindings.
 - Add commands: create `cmd/<name>` with cobra.Command, register on root in entrypoint.
 - Add runtime logic: implement `App.Init/Serve/Stop` with proper shutdown; use contexts.
-- Add tests: table-driven, reset globals in `t.Cleanup`.
+- Add tests: follow table-driven patterns; reset global state (Viper) in `t.Cleanup`.
 
 ## When unsure
 - Ask for clarification via issues/PR description.

@@ -237,10 +237,99 @@ func (m *Module) Init(ctx context.Context) error {
 - Register infrastructure before business logic; business logic before transports.
 - Stop happens in reverse order automatically (LIFO) via the manager.
 
-### 4. Models & Enums
-- Keep models pure (no DB tags/hooks) in `internal/models`; handle DB concerns in the repository layer.
-- Use typed enums with `String()` + `FromString` helpers; keep parsing case-insensitive.
-- Use structured validation errors (`ValidationError` with `Field` and `Message`) for field-level issues.
+### 4. Models & Database Integration
+
+**Model Structure:**
+- Models live in `internal/models/` with go-pg struct tags for database mapping (e.g., `pg:"column_name,pk"`).
+- Use go-pg hooks for lifecycle: `BeforeInsert`, `BeforeUpdate`, `AfterSelect`.
+- Keep validation in `Validate()`; use hooks for DB-specific conversions.
+
+**Status Enums with Database:**
+- Use dual fields: `Status UserStatus pg:"-"` (enum, not stored) and `StatusSQL string pg:"status,use_zero"` (string, stored).
+- Convert in hooks: `BeforeInsert`/`BeforeUpdate` set `StatusSQL = Status.String()`; `AfterSelect` parses `StatusSQL` back to enum.
+- Validation uses enum; database uses string; hooks keep them in sync.
+
+**Example User Model with go-pg:**
+```go
+type User struct {
+    tableName struct{} `pg:"users,discard_unknown_columns"` //nolint:unused
+
+    UUID      uuid.UUID  `pg:"uuid,pk,type:uuid"`
+    Status    UserStatus `pg:"-"`
+    StatusSQL string     `pg:"status,use_zero"`
+    Email     string     `pg:"email,unique,notnull"`
+    Name      string     `pg:"name,notnull"`
+    CreatedAt time.Time  `pg:"created_at,notnull,default:now()"`
+    UpdatedAt time.Time  `pg:"updated_at,notnull,default:now()"`
+}
+
+func (u *User) BeforeInsert(ctx context.Context) (context.Context, error) {
+    if u.UUID == uuid.Nil {
+        id, err := uuid.NewV4()
+        if err != nil {
+            return ctx, fmt.Errorf("generate UUID: %w", err)
+        }
+        u.UUID = id
+    }
+
+    status := u.Status.String()
+    if status == "" {
+        return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+    }
+    u.StatusSQL = status
+
+    return ctx, nil
+}
+
+func (u *User) BeforeUpdate(ctx context.Context) (context.Context, error) {
+    status := u.Status.String()
+    if status == "" {
+        return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+    }
+    u.StatusSQL = status
+    u.UpdatedAt = time.Now()
+
+    return ctx, nil
+}
+
+func (u *User) AfterSelect(_ context.Context) error {
+    status, err := UserStatusFromString(u.StatusSQL)
+    if err != nil {
+        return fmt.Errorf("parse user status: %w", err)
+    }
+    u.Status = status
+    return nil
+}
+```
+
+**Repository Implementation (go-pg):**
+```go
+// internal/repository/postgres.go
+func (r *PostgresRepository) CreateUser(user *models.User) error {
+    if _, err := r.db.Model(user).Returning("*").Insert(); err != nil {
+        return fmt.Errorf("insert user %s into db: %w", user.Email, err)
+    }
+    return nil
+}
+
+func (r *PostgresRepository) UserBy(user *models.User, getter UserGetter) error {
+    query := r.db.Model(user).Column("user.*")
+    if err := getter.Get(query, user); err != nil {
+        return fmt.Errorf("parse getter: %w", err)
+    }
+    if err := query.Select(); err != nil {
+        return fmt.Errorf("get user from database by %s: %w", getter.String(), err)
+    }
+    return nil
+}
+```
+
+**Key Patterns:**
+- Use `Returning("*")` on inserts to populate DB defaults back into the model.
+- Use `Column("table.*")` to select all columns explicitly.
+- Apply getters via `WherePK()` or `Where()` for flexible queries.
+- Keep validation in `Validate()`; hooks handle DB string/enum conversions.
+
 
 ### 5. Fast Health Checks
 - Keep `HealthCheck` under 2s; avoid blocking operations.
