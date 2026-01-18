@@ -123,6 +123,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Schema uses PostgreSQL ENUM `user_status` ('active', 'deleted'); DB trigger updates `updated_at` column.
 - Create migrations with `make migrate-create NAME=<descriptive_name>`; always test down migrations.
 - Apply migrations with `make migrate-up`; rollback with `make migrate-down`; check version with `make migrate-version`; recover with `make migrate-force VERSION=<n>`.
+- Use `make migrate-drop` (with confirmation) to drop all tables during local development only.
 - Never modify applied migrations; create new migrations to fix issues.
 - Use `IF EXISTS`/`IF NOT EXISTS` for idempotent migrations safe to re-run.
 - Production: run migrations before app startup or as separate deployment job.

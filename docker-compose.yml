@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: microservice-template-postgres
+    restart: unless-stopped
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_USER: dev
+      POSTGRES_DB: microservice_dev
+    volumes:
+      - ./data/db/postgres:/var/lib/postgresql/data
+
+  migrate:
+    image: migrate/migrate
+    container_name: microservice-template-migrate
+    depends_on:
+      - postgres
+    volumes:
+      - ./db/migrations:/migrations
+    command: ["-path=/migrations", "-database", "postgres://dev:dev@postgres:5432/microservice_dev?sslmode=disable", "up"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: microservice-template-redis
+    restart: unless-stopped
+    ports:
+      - "63790:6379"
+    volumes:
+      - ./data/redis:/data

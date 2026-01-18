@@ -119,34 +119,6 @@ make migrate-up
 make migrate-version
 ```
 
-**Create new migration:**
-```bash
-make migrate-create NAME=add_user_roles
-# Edit the generated files in db/migrations/
-```
-
-**Configure via environment variables:**
-```bash
-export DATABASE_ENABLED=true
-export DATABASE_DRIVER=postgres
-export DATABASE_HOST=localhost
-export DATABASE_PORT=5432
-export DATABASE_NAME=microservice_dev
-export DATABASE_USER=dev
-export DATABASE_PASSWORD=dev
-export DATABASE_SSL_MODE=disable
-```
-
-**Migration management:**
-- Migrations live in `db/migrations/` directory
-- Numbered sequentially: `000001_name.up.sql`, `000001_name.down.sql`
-- Use `make migrate-create NAME=<name>` to create migration pairs
-- Use `make migrate-up` to apply pending migrations
-- Use `make migrate-down` to rollback last migration
-- Use `make migrate-force VERSION=<n>` to recover from dirty state
-- Use `make migrate-version` to check current migration version
-- Use `make migrate-drop` to drop all tables (with confirmation prompt)
-
 **Available migration targets:**
 ```bash
 make migrate-install      # Install golang-migrate CLI
@@ -158,7 +130,17 @@ make migrate-version      # Show current migration version
 make migrate-drop         # Drop all tables (⚠️ DANGER - requires confirmation)
 ```
 
+**Local development with Docker Compose:**
+```bash
+# Start Postgres, Redis, and auto-run migrations (uses db/migrations)
+docker-compose up -d
+
+# Stop services
+docker-compose down
+```
+
 For production deployments, run migrations before starting the application or use a separate migration job in your deployment pipeline.
+
 
 ### Adding Custom Modules
 

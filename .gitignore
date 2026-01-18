@@ -21,3 +21,6 @@ __debug_bin
 microservice-template
 
 # TODO: add any required ignore patterns here
+
+# Local docker-compose data
+/data/
