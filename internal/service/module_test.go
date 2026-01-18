@@ -4,17 +4,18 @@ import (
 	"context"
 	"testing"
 
+	"microservice-template/internal/models"
 	"microservice-template/internal/repository"
 )
 
 // moduleMockRepository is a simple in-memory repository for testing purposes.
 type moduleMockRepository struct{}
 
-func (m *moduleMockRepository) CreateUser(model interface{}) error {
+func (m *moduleMockRepository) CreateUser(user *models.User) error {
 	return nil
 }
 
-func (m *moduleMockRepository) UserBy(model interface{}, getter repository.UserGetter) error {
+func (m *moduleMockRepository) UserBy(user *models.User, getter repository.UserGetter) error {
 	return nil
 }
 

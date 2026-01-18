@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"microservice-template/internal/models"
 	"microservice-template/internal/repository"
 	"microservice-template/pkg/logger"
 )
@@ -12,10 +13,10 @@ import (
 // This service orchestrates repository operations and implements business rules.
 type IService interface {
 	// CreateUser creates a new user.
-	CreateUser(ctx context.Context, user interface{}) error
+	CreateUser(ctx context.Context, user *models.User) error
 
 	// GetUserByEmail retrieves a user by email address.
-	GetUserByEmail(ctx context.Context, email string) (interface{}, error)
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
 // Service implements IService interface.
@@ -48,10 +49,14 @@ func NewService(repository repository.IRepository) IService {
 
 // CreateUser creates a new user in the system.
 // TODO: Add validation, business rules, etc.
-func (s *Service) CreateUser(ctx context.Context, user interface{}) error {
+func (s *Service) CreateUser(ctx context.Context, user *models.User) error {
 	logger.Log().Info("creating user")
 
-	// TODO: Validate user data
+	if user == nil {
+		return fmt.Errorf("user is required")
+	}
+
+	// TODO: Validate user data (e.g., user.Validate())
 	// TODO: Check for duplicates
 	// TODO: Apply business rules
 
@@ -71,16 +76,12 @@ func (s *Service) CreateUser(ctx context.Context, user interface{}) error {
 
 // GetUserByEmail retrieves a user by email address.
 // TODO: Implement caching when cache module is added.
-func (s *Service) GetUserByEmail(ctx context.Context, email string) (interface{}, error) {
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	logger.Log().Infof("getting user by email: %s", email)
 
 	// TODO: Check cache first (when cache module is added)
 
-	// Create a temporary user object with email
-	// In real implementation, this will be *models.User
-	user := map[string]interface{}{
-		"email": email,
-	}
+	user := &models.User{Email: email}
 
 	if s.repository == nil {
 		return nil, fmt.Errorf("repository not available: database module not enabled")

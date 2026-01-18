@@ -5,17 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	"microservice-template/internal/models"
 	"microservice-template/internal/repository"
 )
 
 // serviceMockRepository is a simple in-memory repository for testing purposes.
 type serviceMockRepository struct{}
 
-func (m *serviceMockRepository) CreateUser(model interface{}) error {
+func (m *serviceMockRepository) CreateUser(user *models.User) error {
 	return nil
 }
 
-func (m *serviceMockRepository) UserBy(model interface{}, getter repository.UserGetter) error {
+func (m *serviceMockRepository) UserBy(user *models.User, getter repository.UserGetter) error {
 	return nil
 }
 
@@ -24,9 +25,7 @@ func TestService_CreateUser(t *testing.T) {
 	svc := NewService(repo)
 
 	ctx := context.Background()
-	user := map[string]interface{}{
-		"email": "test@example.com",
-	}
+	user := &models.User{Email: "test@example.com", Name: "John", Status: models.UserActive}
 
 	if err := svc.CreateUser(ctx, user); err != nil {
 		t.Fatalf("CreateUser returned error: %v", err)
@@ -37,9 +36,7 @@ func TestService_CreateUser_NoRepository(t *testing.T) {
 	svc := NewService(nil)
 
 	ctx := context.Background()
-	user := map[string]interface{}{
-		"email": "test@example.com",
-	}
+	user := &models.User{Email: "test@example.com", Name: "John", Status: models.UserActive}
 
 	err := svc.CreateUser(ctx, user)
 	if err == nil {
@@ -65,6 +62,10 @@ func TestService_GetUserByEmail(t *testing.T) {
 
 	if user == nil {
 		t.Fatal("expected non-nil user")
+	}
+
+	if user.Email != "test@example.com" {
+		t.Fatalf("expected email to match, got %s", user.Email)
 	}
 }
 

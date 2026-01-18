@@ -1,11 +1,13 @@
 package repository
 
+import "microservice-template/internal/models"
+
 // IRepository defines the storage interface for database operations.
 // This interface abstracts the underlying database implementation.
 type IRepository interface {
 	// CreateUser creates a new user in the database.
-	CreateUser(model interface{}) error
+	CreateUser(user *models.User) error
 
 	// UserBy retrieves a user from database using the specified getter.
-	UserBy(model interface{}, getter UserGetter) error
+	UserBy(user *models.User, getter UserGetter) error
 }

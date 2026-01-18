@@ -104,10 +104,15 @@ go-microservice-template/
 │   └── MODULE_DEVELOPMENT.md  # Module development guide
 │
 ├── internal/               # Private application code
-│   ├── module/             # Module system (NEW)
+│   ├── module/             # Module system
 │   │   ├── module.go       # Module interface definition
 │   │   ├── manager.go      # Module lifecycle manager
 │   │   └── manager_test.go
+│   ├── models/             # Domain models (User, statuses, validation)
+│   │   ├── user.go
+│   │   ├── user_status.go
+│   │   ├── validation_error.go
+│   │   └── *_test.go
 │   ├── application.go      # App struct with module orchestration
 │   └── application_test.go
 │

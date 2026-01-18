@@ -5,7 +5,14 @@ import (
 	"testing"
 
 	"microservice-template/config"
+	"microservice-template/internal/models"
 )
+
+// moduleMockRepository is a simple in-memory repository for testing purposes.
+type moduleMockRepository struct{}
+
+func (m *moduleMockRepository) CreateUser(user *models.User) error                { return nil }
+func (m *moduleMockRepository) UserBy(user *models.User, getter UserGetter) error { return nil }
 
 func TestRepositoryModule_Lifecycle(t *testing.T) {
 	cfg := &config.DatabaseConfig{

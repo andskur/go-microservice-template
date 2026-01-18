@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 
+	"microservice-template/internal/models"
 	"microservice-template/pkg/logger"
 )
 
@@ -28,17 +29,15 @@ func NewPostgresRepository(db interface{}) IRepository {
 //
 // Example implementation (when models are ready):
 //
-//	user := model.(*models.User)
 //	_, err := r.db.(*pg.DB).Model(user).Returning("*").Insert()
 //	if err != nil {
 //	    return fmt.Errorf("insert user %s into db: %w", user.Email, err)
 //	}
-func (r *PostgresRepository) CreateUser(model interface{}) error {
+func (r *PostgresRepository) CreateUser(user *models.User) error {
 	logger.Log().Info("PostgresRepository.CreateUser called")
 
 	// TODO: Implement when models and go-pg are added
 	// Example from your code:
-	// user := model.(*models.User)
 	// if _, err := r.db.(*pg.DB).Model(user).Returning("*").Insert(); err != nil {
 	//     return fmt.Errorf("insert user %s into db: %w", user.Email, err)
 	// }
@@ -50,7 +49,6 @@ func (r *PostgresRepository) CreateUser(model interface{}) error {
 //
 // Example implementation (when models are ready):
 //
-//	user := model.(*models.User)
 //	query := r.db.(*pg.DB).Model(user).Column("user.*")
 //	if err := getter.Get(query, user); err != nil {
 //	    return fmt.Errorf("parse getter: %w", err)
@@ -58,7 +56,7 @@ func (r *PostgresRepository) CreateUser(model interface{}) error {
 //	if err := query.Select(); err != nil {
 //	    return fmt.Errorf("get user from database by %s: %w", getter.String(), err)
 //	}
-func (r *PostgresRepository) UserBy(model interface{}, getter UserGetter) error {
+func (r *PostgresRepository) UserBy(user *models.User, getter UserGetter) error {
 	logger.Log().Infof("PostgresRepository.UserBy called with getter: %s", getter.String())
 
 	// Validate getter
@@ -68,7 +66,6 @@ func (r *PostgresRepository) UserBy(model interface{}, getter UserGetter) error 
 
 	// TODO: Implement when models and go-pg are added
 	// Example from your code:
-	// user := model.(*models.User)
 	// query := r.db.(*pg.DB).Model(user).Column("user.*")
 	// if err := getter.Get(query, user); err != nil {
 	//     return fmt.Errorf("parse getter: %w", err)
