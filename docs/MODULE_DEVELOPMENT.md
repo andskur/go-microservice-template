@@ -237,13 +237,18 @@ func (m *Module) Init(ctx context.Context) error {
 - Register infrastructure before business logic; business logic before transports.
 - Stop happens in reverse order automatically (LIFO) via the manager.
 
-### 4. Fast Health Checks
+### 4. Models & Enums
+- Keep models pure (no DB tags/hooks) in `internal/models`; handle DB concerns in the repository layer.
+- Use typed enums with `String()` + `FromString` helpers; keep parsing case-insensitive.
+- Use structured validation errors (`ValidationError` with `Field` and `Message`) for field-level issues.
+
+### 5. Fast Health Checks
 - Keep `HealthCheck` under 2s; avoid blocking operations.
 
-### 5. No Global Service Locator
+### 6. No Global Service Locator
 - Do not fetch dependencies from globals; use explicit constructor injection.
 
-### 6. Graceful Shutdown
+### 7. Graceful Shutdown
 - `Stop` should be idempotent, respect context deadlines, and clean up all resources.
     
     // Do initialization work
@@ -253,7 +258,7 @@ func (m *Module) Init(ctx context.Context) error {
 }
 ```
 
-### 2. Non-blocking Start
+### 8. Non-blocking Start
 Use goroutines for long-running operations:
 
 ```go

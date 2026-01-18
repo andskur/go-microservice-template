@@ -98,6 +98,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep modules focused and single-purpose; make Init() idempotent.
 - Use goroutines in Start() for background work; respect context timeout in Stop().
 - HealthCheck() must be fast (< 2s); log all lifecycle events.
+- Models live in `internal/models` and stay pure (no DB hooks/tags); use typed enums with String/FromString helpers and structured validation errors (`ValidationError` with Field/Message).
 - See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
 
 ### Adding a New Module

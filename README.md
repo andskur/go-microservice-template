@@ -75,6 +75,13 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
 - **Configuration-driven**: Enable/disable modules via YAML/env vars (repository depends on `database.enabled`; service always registers)
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
 
+## Models & Enums
+- Models live in `internal/models`; they are **pure data** (no DB hooks/tags).
+- Validation uses `Validate() error` returning `*models.ValidationError` with `Field` and `Message` for structured errors.
+- Enums follow the `UserStatus` pattern: typed int, string mapping via `String()`, parsing via `FromString` (case-insensitive).
+- Database concerns (tags/hooks/status string fields, timestamps) belong in the repository layer; add go-pg tags/hooks later if you choose that driver.
+- Keep constructors/helpers optional; repositories/services can set defaults (e.g., status) and timestamps.
+
 ## Limitations
 This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal.
 
