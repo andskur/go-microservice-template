@@ -137,6 +137,9 @@ make compose-up
 
 # Stop services
 make compose-down
+
+# Restart services
+make compose-restart
 ```
 
 For production deployments, run migrations before starting the application or use a separate migration job in your deployment pipeline.

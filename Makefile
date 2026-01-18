@@ -132,6 +132,11 @@ compose-up:
 compose-down:
 	docker-compose down
 
+.PHONY: compose-restart
+compose-restart:
+	docker-compose down
+	docker-compose up -d
+
 # The test-coverage target runs go test with coverage enabled and generates a coverage report
 test-coverage:
 	go test -coverprofile=coverage.out ./...
