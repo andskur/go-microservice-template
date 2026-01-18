@@ -71,10 +71,7 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
 
 ## Limitations
-This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal:
-- No HTTP or gRPC server wired—skeleton only; you add runtime workloads.
-- Uses Viper globals; reset carefully in tests (see `cmd/root/root_test.go`).
-- Release workflow auto-increments tags (`v1`, `v2`, …) on `main`.
+This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal.
 
 ## Project Structure
 ```

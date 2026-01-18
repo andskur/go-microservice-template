@@ -18,6 +18,6 @@
 
 __debug_bin
 
-template-service
+microservice-template
 
 # TODO: add any required ignore patterns here
