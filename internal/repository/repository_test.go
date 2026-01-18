@@ -25,6 +25,7 @@ func TestRepositoryInterface_MockImplementation(t *testing.T) {
 	}
 }
 
+//nolint:govet // test table alignment is acceptable here
 func TestUserGetter_String(t *testing.T) {
 	tests := []struct {
 		getter UserGetter

@@ -22,14 +22,18 @@ import (
 //   - Proto() *proto.User for gRPC protocol buffer conversion
 //   - UserFromProto(*proto.User) *User helper for inbound proto messages
 //   - UsersToProto([]*User) []*proto.User for slice conversions
+//
+// User represents a user in the system.
+//
+//nolint:govet // field alignment kept for readability and conventional ordering
 type User struct {
 	UUID      uuid.UUID
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Status    UserStatus
 	Email     string
 	Name      string
 	Avatar    string
-	Status    UserStatus
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // emailRegex is a basic email validation pattern.

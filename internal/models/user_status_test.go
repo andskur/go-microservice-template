@@ -2,6 +2,7 @@ package models
 
 import "testing"
 
+//nolint:govet // test table alignment is acceptable here
 func TestUserStatus_String(t *testing.T) {
 	tests := []struct {
 		status UserStatus
