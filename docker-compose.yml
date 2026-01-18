@@ -6,7 +6,7 @@ services:
     container_name: microservice-template-postgres
     restart: unless-stopped
     ports:
-      - "54322:5432"
+      - "5432:5432"
     environment:
       POSTGRES_PASSWORD: dev
       POSTGRES_USER: dev
@@ -28,6 +28,27 @@ services:
     container_name: microservice-template-redis
     restart: unless-stopped
     ports:
-      - "63790:6379"
+      - "6379:6379"
     volumes:
       - ./data/redis:/data
+
+  app:
+    build: .
+    container_name: microservice-template-app
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8080:8080"   # HTTP (when added)
+      - "9090:9090"   # gRPC
+    environment:
+      DATABASE_ENABLED: "true"
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: dev
+      DATABASE_PASSWORD: dev
+      DATABASE_NAME: microservice_dev
+      GRPC_ENABLED: "true"
+      GRPC_HOST: "0.0.0.0"
+      GRPC_PORT: 9090

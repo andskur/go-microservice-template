@@ -499,6 +499,24 @@ internal/
         └── user.go
 ```
 
+## gRPC Module Patterns
+
+- Module path: `internal/grpc/` (implements `module.Module`).
+- Configuration: `config.GRPCConfig` (`grpc.*` keys) with defaults in `config/init.go`.
+- Registration: optional, enabled when `grpc.enabled=true` in config; wired in `internal/application.go` after service module.
+- Health: standard `grpc.health.v1` service registered in `Server.RegisterHealthService()`.
+- Middleware: logging and recovery interceptors (no Sentry).
+- Handler registration: done in `module.go -> registerHandlers()` (uncommented, ready to extend).
+- Conversions: proto helpers live in `internal/grpc/conversions.go` (keeps models package free of proto deps).
+- Example service: `protocols/user` with two methods (`GetUser`, `CreateUser`).
+
+### Adding a New gRPC Service
+1. Add `.proto` under `protocols/<service>/` and run `make proto-generate PROTO_PACKAGE=<service>`.
+2. Add conversion helpers in `internal/grpc/conversions.go` (or a new file) for your types and enums.
+3. Implement handlers in `internal/grpc/` using `service.IService` (or other deps); return gRPC status errors.
+4. Register handlers in `module.go -> registerHandlers()`.
+5. Keep HealthCheck fast (<2s); server already registers standard health service.
+
 ## Troubleshooting
 
 ### Module not starting

@@ -102,6 +102,32 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Models live in `internal/models` and stay pure (no DB hooks/tags) when DB is not in use; when database is enabled with go-pg, models include go-pg struct tags and hooks for UUID/status/timestamps.
 - See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
 
+### gRPC Module
+- Optional; enabled via `grpc.enabled=true` in config.
+- Config struct: `config.GRPCConfig` (`grpc.*` keys), defaults in `config/init.go`.
+- Module implementation: `internal/grpc/` (Init/Start/Stop/HealthCheck).
+- Handler registration is uncommented in `internal/grpc/module.go` (`registerHandlers`).
+- Health: standard `grpc.health.v1` service registered automatically.
+- Middleware: logging + recovery (no Sentry). Logging at Info for requests, Error for failures.
+- Proto conversions live in `internal/grpc/conversions.go` (keeps models free of proto deps).
+- Example service: `protocols/user` with `GetUser` and `CreateUser`; replace via subtree or direct files.
+
+### Protobuf Workflow
+- Targets in Makefile:
+  - `make proto-install`: install protoc plugins (go, go-grpc).
+  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree.
+  - `make proto-update`: update subtree.
+  - `make proto-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>/*.proto`.
+  - `make proto-clean`: remove generated `.pb.go` files.
+  - `make test-grpc`: run gRPC package tests (unit + integration).
+- Generated files are ignored (.gitignore). Run `make proto-generate PROTO_PACKAGE=user` for the example.
+
+### Handler Patterns
+- Implement handlers in `internal/grpc/handlers.go` (example `UserHandlers`).
+- Depend on `service.IService`; validate inputs; return gRPC status errors.
+- Register services in `registerHandlers()`; example already wired for user service.
+- Use conversions from `internal/grpc/conversions.go` for model↔proto.
+
 ### Repository Layer with go-pg
 - Repository module wraps `*pg.DB` connection and implements `IRepository` interface.
 - Located in `internal/repository/`; registered only when `database.enabled=true`.

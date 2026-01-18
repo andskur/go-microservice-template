@@ -1,10 +1,24 @@
 // Package config defines application configuration defaults and schema.
 package config
 
+// GRPCConfig holds gRPC server settings.
+type GRPCConfig struct {
+	Host             string `mapstructure:"host"`
+	Timeout          string `mapstructure:"timeout"`
+	MaxSendMsgSize   int    `mapstructure:"max_send_msg_size"`
+	MaxRecvMsgSize   int    `mapstructure:"max_recv_msg_size"`
+	Port             int    `mapstructure:"port"`
+	NumStreamWorkers uint32 `mapstructure:"num_stream_workers"`
+	Enabled          bool   `mapstructure:"enabled"`
+}
+
 // Scheme represents the application configuration scheme.
 type Scheme struct {
 	// Database configuration for repository module (optional; nil if disabled).
 	Database *DatabaseConfig `mapstructure:"database"`
+
+	// GRPC configuration for gRPC module (optional; nil if disabled).
+	GRPC *GRPCConfig `mapstructure:"grpc"`
 
 	// Env is the application environment (e.g. prod, dev, local).
 	Env string `mapstructure:"env"`
@@ -12,8 +26,6 @@ type Scheme struct {
 	// TODO: Add more module configurations here as you implement them
 	// Example: HTTP server module configuration
 	// HTTP *HTTPConfig `mapstructure:"http"`
-	// Example: gRPC server module configuration
-	// GRPC *GRPCConfig `mapstructure:"grpc"`
 }
 
 // DatabaseConfig holds database connection settings.

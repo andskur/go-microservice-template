@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "microservice-template/protocols/user";
+
+import "google/protobuf/timestamp.proto";
+
+// UserService provides user management operations.
+// This is an example service to demonstrate the gRPC pattern.
+service UserService {
+  // GetUser retrieves a user by email address.
+  rpc GetUser(GetUserRequest) returns (User);
+
+  // CreateUser creates a new user.
+  rpc CreateUser(CreateUserRequest) returns (User);
+}
+
+// User represents a user in the system.
+message User {
+  bytes uuid = 1;
+  string email = 2;
+  string name = 3;
+  UserStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// UserStatus represents the current state of a user.
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_DELETED = 2;
+}
+
+// GetUserRequest requests a user by email.
+message GetUserRequest {
+  string email = 1;
+}
+
+// CreateUserRequest creates a new user.
+message CreateUserRequest {
+  string email = 1;
+  string name = 2;
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"microservice-template/config"
+	grpcmod "microservice-template/internal/grpc"
 	"microservice-template/internal/module"
 	"microservice-template/internal/repository"
 	"microservice-template/internal/service"
@@ -94,6 +95,24 @@ func (app *App) registerModules() error {
 
 	svcModule := service.NewModule(repo)
 	app.modules.Register(svcModule)
+
+	// Capture service instance for downstream transports
+	for _, mod := range app.modules.List() {
+		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
+			app.svc = svcMod.Service()
+			break
+		}
+	}
+
+	// gRPC module (transport), optional
+	if app.config.GRPC != nil && app.config.GRPC.Enabled {
+		logger.Log().Info("grpc enabled, registering grpc module")
+
+		grpcModule := grpcmod.NewModule(app.config.GRPC, app.svc)
+		app.modules.Register(grpcModule)
+	} else {
+		logger.Log().Info("grpc not enabled, grpc module not registered")
+	}
 
 	logger.Log().Infof("registered %d modules", app.modules.Count())
 	return nil

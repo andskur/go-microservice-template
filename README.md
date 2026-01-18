@@ -13,8 +13,10 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Version: `./microservice-template --version`.
 - Lint: `make lint` (golangci-lint).
 - Test: `make test` or single test `go test ./... -run TestName -count=1`.
+- gRPC tests: `make test-grpc` (runs gRPC package including integration).
 - Coverage: `make test-coverage` (writes `coverage.out`).
 - Tidy deps: `make tidy`; update deps: `make update`.
+- gRPC quickstart: see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md); enable with `GRPC_ENABLED=true`, test with grpcurl.
 
 ### Renaming the project
 - Command: `make rename NEW_NAME=my-service` (required parameter).
@@ -32,20 +34,29 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
 - Rename-friendly: single placeholder name with automated `make rename` target.
 
-## Project Structure (abridged)
+## Project Structure
 ```
 go-microservice-template/
-├── cmd/                    # CLI entry + commands
-├── config/                 # Viper defaults and scheme
-├── db/migrations/          # Database migration files (golang-migrate)
-├── docs/                   # Additional guides
-├── internal/               # Modules, models, application wiring
-├── pkg/                    # Reusable packages (logger, version)
-├── scripts/                # Automation scripts (rename)
-├── .github/workflows/      # CI/CD pipelines
-├── Dockerfile, Makefile    # Build/run/lint/test helpers
-├── README.md, AGENTS.md    # Docs and guidelines
-└── go.mod, go.sum          # Dependencies
+├── cmd/                        # CLI entry + commands
+├── config/                     # Viper defaults and scheme
+├── db/migrations/              # Database migration files (golang-migrate)
+├── docs/                       # Additional guides (incl. GRPC_GUIDE)
+├── internal/
+│   ├── application.go          # App wiring + module registration
+│   ├── grpc/                   # gRPC module (server, handlers, conversions)
+│   ├── module/                 # Module interface/manager
+│   ├── repository/             # Repository module (optional)
+│   ├── service/                # Business logic module
+│   └── models/                 # Domain models/enums
+├── pkg/                        # Reusable packages (logger, version)
+├── protocols/                  # Example protobuf definitions (replaceable)
+├── scripts/                    # Automation scripts (rename)
+├── .github/workflows/          # CI/CD pipelines
+├── Dockerfile                  # Multi-stage container build
+├── docker-compose.yml          # Local stack (Postgres/Redis/app)
+├── Makefile                    # Build/run/lint/test/proto targets
+├── README.md, AGENTS.md        # Docs and guidelines
+└── go.mod, go.sum              # Dependencies
 ```
 
 ## Module System
@@ -62,7 +73,7 @@ The template includes configuration placeholders for common modules:
 | Repository | Database-backed persistence (wraps DB connection) | `database` | ✅ Implemented (enabled when `database.enabled` is true) |
 | Service | Business logic orchestrator (optional deps) | n/a | ✅ Implemented (always registered; repository optional) |
 | HTTP | HTTP REST API server | `http` | 🔜 Coming soon |
-| gRPC | gRPC API server | `grpc` | 🔜 Coming soon |
+| gRPC | gRPC API server | `grpc` | ✅ Implemented (enabled when `grpc.enabled` is true) |
 
 ### Enabling Modules
 
@@ -275,21 +286,6 @@ func WidgetStateFromString(v string) (WidgetState, error) {
 
 ## Limitations
 This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal.
-
-## Project Structure (abridged)
-```
-go-microservice-template/
-├── cmd/                    # CLI entry + commands
-├── config/                 # Viper defaults and scheme
-├── docs/                   # Additional guides
-├── internal/               # Modules, models, application wiring
-├── pkg/                    # Reusable packages (logger, version)
-├── scripts/                # Automation scripts (rename)
-├── .github/workflows/      # CI/CD pipelines
-├── Dockerfile, Makefile    # Build/run/lint/test helpers
-├── README.md, AGENTS.md    # Docs and guidelines
-└── go.mod, go.sum          # Dependencies
-```
 
 ## Configuration
 - Defaults: `env` defaults to `prod` (`config/init.go:setDefaults`).

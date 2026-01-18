@@ -119,6 +119,11 @@ build:
 test:
 	go test ./...
 
+# gRPC integration tests (runs only gRPC package tests, including integration)
+.PHONY: test-grpc
+test-grpc:
+	go test ./internal/grpc -count=1
+
 # The clean target deletes the build output file
 clean:
 	rm $(BUILD_OUT_DIR)/$(APP)
@@ -149,6 +154,62 @@ lint:
 # The lint-install target installs golangci-lint if not already installed
 lint-install:
 	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+
+# Protobuf configuration
+PROTO_DIR := ./protocols
+PROTO_REPO ?= https://github.com/yourorg/your-protocols.git
+PROTO_BRANCH ?= main
+
+.PHONY: proto-install
+proto-install:
+	@which protoc > /dev/null || (echo "Error: protoc not installed. Visit https://grpc.io/docs/protoc-installation/" && exit 1)
+	@echo "Installing protoc-gen-go and protoc-gen-go-grpc..."
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@echo "Proto tools installed successfully"
+
+.PHONY: proto-setup
+proto-setup:
+ifndef PROTO_REPO
+	@echo "Error: PROTO_REPO parameter is required"
+	@echo "Usage: make proto-setup PROTO_REPO=git@github.com:yourorg/your-protocols.git"
+	@echo "   or: make proto-setup PROTO_REPO=https://github.com/yourorg/your-protocols.git"
+	@exit 1
+endif
+	@echo "Adding protobuf subtree from $(PROTO_REPO)..."
+	@git subtree add --prefix=$(PROTO_DIR) $(PROTO_REPO) $(PROTO_BRANCH) --squash
+	@echo "Subtree added successfully"
+
+.PHONY: proto-update
+proto-update:
+	@echo "Updating protobuf subtree from $(PROTO_REPO)..."
+	@git subtree pull --prefix=$(PROTO_DIR) $(PROTO_REPO) $(PROTO_BRANCH) --squash
+	@echo "Subtree updated successfully"
+
+.PHONY: proto-generate
+proto-generate:
+ifndef PROTO_PACKAGE
+	@echo "Error: PROTO_PACKAGE parameter is required"
+	@echo "Usage: make proto-generate PROTO_PACKAGE=user"
+	@echo "This will generate Go code from $(PROTO_DIR)/user/*.proto"
+	@exit 1
+endif
+	@test -d $(PROTO_DIR)/$(PROTO_PACKAGE) || (echo "Error: $(PROTO_DIR)/$(PROTO_PACKAGE) directory not found" && exit 1)
+	@echo "Generating Go code from $(PROTO_DIR)/$(PROTO_PACKAGE)/*.proto..."
+	@cd $(PROTO_DIR)/$(PROTO_PACKAGE) && \
+		protoc --go_out=paths=source_relative:. \
+		       --go_opt=paths=source_relative \
+		       --go-grpc_out=paths=source_relative:. \
+		       --go-grpc_opt=paths=source_relative \
+		       *.proto
+	@echo "Proto generation complete for $(PROTO_PACKAGE)"
+
+.PHONY: proto-clean
+proto-clean:
+	@echo "Cleaning generated proto files..."
+	@find $(PROTO_DIR) -name "*.pb.go" -type f -delete
+	@find $(PROTO_DIR) -name "*_grpc.pb.go" -type f -delete
+	@echo "Generated proto files removed"
 
 .PHONY: rename
 rename:
