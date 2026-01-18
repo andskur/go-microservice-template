@@ -25,8 +25,7 @@ type App struct {
 
 	// Services (exposed to transports like HTTP/gRPC)
 	// Will be nil if dependent modules (e.g., repository) are not enabled.
-	// Example: userService depends on repository module.
-	userService service.IUsersService
+	svc service.IService
 }
 
 // NewApplication creates a new App instance.
@@ -77,11 +76,11 @@ func (app *App) registerModules() error {
 		app.modules.Register(repoModule)
 
 		// Service layer depends on repository
-		app.userService = service.NewUsersService(repoModule.Repository())
-		logger.Log().Info("users service initialized with repository")
+		app.svc = service.NewService(repoModule.Repository())
+		logger.Log().Info("service initialized with repository")
 	} else {
-		logger.Log().Info("database not enabled, repository module and user service not registered")
-		app.userService = nil
+		logger.Log().Info("database not enabled, repository module and service not registered")
+		app.svc = nil
 	}
 
 	logger.Log().Infof("registered %d modules", app.modules.Count())
@@ -133,10 +132,10 @@ func (app *App) Modules() *module.Manager {
 	return app.modules
 }
 
-// UserService returns the user service instance.
+// Service returns the service instance.
 // Returns nil if the repository module is not enabled.
-func (app *App) UserService() service.IUsersService {
-	return app.userService
+func (app *App) Service() service.IService {
+	return app.svc
 }
 
 // CreateAddr creates an address string from host and port.

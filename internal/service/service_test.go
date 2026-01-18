@@ -18,27 +18,27 @@ func (m *mockRepository) UserBy(model interface{}, getter repository.UserGetter)
 	return nil
 }
 
-func TestUsersService_CreateUser(t *testing.T) {
+func TestService_CreateUser(t *testing.T) {
 	repo := &mockRepository{}
-	service := NewUsersService(repo)
+	svc := NewService(repo)
 
 	ctx := context.Background()
 	user := map[string]interface{}{
 		"email": "test@example.com",
 	}
 
-	if err := service.CreateUser(ctx, user); err != nil {
+	if err := svc.CreateUser(ctx, user); err != nil {
 		t.Fatalf("CreateUser returned error: %v", err)
 	}
 }
 
-func TestUsersService_GetUserByEmail(t *testing.T) {
+func TestService_GetUserByEmail(t *testing.T) {
 	repo := &mockRepository{}
-	service := NewUsersService(repo)
+	svc := NewService(repo)
 
 	ctx := context.Background()
 
-	user, err := service.GetUserByEmail(ctx, "test@example.com")
+	user, err := svc.GetUserByEmail(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("GetUserByEmail returned error: %v", err)
 	}

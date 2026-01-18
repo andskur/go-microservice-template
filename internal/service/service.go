@@ -8,9 +8,9 @@ import (
 	"microservice-template/pkg/logger"
 )
 
-// IUsersService defines the business logic interface for user operations.
+// IService defines the business logic interface for domain operations.
 // This service orchestrates repository operations and implements business rules.
-type IUsersService interface {
+type IService interface {
 	// CreateUser creates a new user.
 	CreateUser(ctx context.Context, user interface{}) error
 
@@ -18,8 +18,8 @@ type IUsersService interface {
 	GetUserByEmail(ctx context.Context, email string) (interface{}, error)
 }
 
-// UsersService implements IUsersService interface.
-type UsersService struct {
+// Service implements IService interface.
+type Service struct {
 	repository repository.IRepository
 
 	// TODO: Add more dependencies as optional when implementing
@@ -32,7 +32,7 @@ type UsersService struct {
 	// gracefully handle their absence. Check for nil before using.
 }
 
-// NewUsersService creates a new users service instance.
+// NewService creates a new service instance.
 // Dependencies:
 //   - repository: Required. Handles data persistence.
 //
@@ -40,15 +40,15 @@ type UsersService struct {
 //   - sessions: Optional. Session management for auth.
 //   - cache: Optional. Caching layer for performance.
 //   - events: Optional. Event publishing for async operations.
-func NewUsersService(repository repository.IRepository) IUsersService {
-	return &UsersService{
+func NewService(repository repository.IRepository) IService {
+	return &Service{
 		repository: repository,
 	}
 }
 
 // CreateUser creates a new user in the system.
 // TODO: Add validation, business rules, etc.
-func (s *UsersService) CreateUser(ctx context.Context, user interface{}) error {
+func (s *Service) CreateUser(ctx context.Context, user interface{}) error {
 	logger.Log().Info("creating user")
 
 	// TODO: Validate user data
@@ -67,7 +67,7 @@ func (s *UsersService) CreateUser(ctx context.Context, user interface{}) error {
 
 // GetUserByEmail retrieves a user by email address.
 // TODO: Implement caching when cache module is added.
-func (s *UsersService) GetUserByEmail(ctx context.Context, email string) (interface{}, error) {
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (interface{}, error) {
 	logger.Log().Infof("getting user by email: %s", email)
 
 	// TODO: Check cache first (when cache module is added)

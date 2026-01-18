@@ -41,9 +41,9 @@ func TestApp_Init_NoModules(t *testing.T) {
 		t.Errorf("expected 0 modules, got %d", app.modules.Count())
 	}
 
-	// UserService should be nil when database is disabled
-	if app.UserService() != nil {
-		t.Error("UserService should be nil when database is not enabled")
+	// Service should be nil when database is disabled
+	if app.Service() != nil {
+		t.Error("Service should be nil when database is not enabled")
 	}
 }
 
@@ -117,8 +117,8 @@ func TestApp_RegisterModules_WithDatabase(t *testing.T) {
 		t.Errorf("expected 1 module, got %d", app.modules.Count())
 	}
 
-	if app.UserService() == nil {
-		t.Error("UserService should be initialized when database is enabled")
+	if app.Service() == nil {
+		t.Error("Service should be initialized when database is enabled")
 	}
 }
 
