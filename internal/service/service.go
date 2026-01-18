@@ -55,6 +55,10 @@ func (s *Service) CreateUser(ctx context.Context, user interface{}) error {
 	// TODO: Check for duplicates
 	// TODO: Apply business rules
 
+	if s.repository == nil {
+		return fmt.Errorf("repository not available: database module not enabled")
+	}
+
 	if err := s.repository.CreateUser(user); err != nil {
 		return fmt.Errorf("create user: %w", err)
 	}
@@ -76,6 +80,10 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (interface{}
 	// In real implementation, this will be *models.User
 	user := map[string]interface{}{
 		"email": email,
+	}
+
+	if s.repository == nil {
+		return nil, fmt.Errorf("repository not available: database module not enabled")
 	}
 
 	if err := s.repository.UserBy(user, repository.Email); err != nil {

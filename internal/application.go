@@ -56,8 +56,13 @@ func (app *App) Init() error {
 		return fmt.Errorf("init modules: %w", err)
 	}
 
-	// At this point, services may still be nil if dependencies are disabled.
-	// Transports (HTTP/gRPC) should check for nil before using services.
+	// Capture service instance from service module (always registered)
+	for _, mod := range app.modules.List() {
+		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
+			app.svc = svcMod.Service()
+			break
+		}
+	}
 
 	return nil
 }
@@ -68,20 +73,27 @@ func (app *App) Init() error {
 // 2. Business logic (repositories, services).
 // 3. Transport (http, grpc).
 func (app *App) registerModules() error {
-	// Repository module (database-backed) and dependent service
+	// Repository module (database-backed) is optional
+	var repoModule *repository.Module
 	if app.config.Database != nil && app.config.Database.Enabled {
 		logger.Log().Info("database enabled, registering repository module")
 
-		repoModule := repository.NewModule(app.config.Database)
+		repoModule = repository.NewModule(app.config.Database)
 		app.modules.Register(repoModule)
-
-		// Service layer depends on repository
-		app.svc = service.NewService(repoModule.Repository())
-		logger.Log().Info("service initialized with repository")
 	} else {
-		logger.Log().Info("database not enabled, repository module and service not registered")
-		app.svc = nil
+		logger.Log().Info("database not enabled, repository module not registered")
 	}
+
+	// Service module is always registered; repository may be nil
+	logger.Log().Info("registering service module")
+
+	var repo repository.IRepository
+	if repoModule != nil {
+		repo = repoModule.Repository()
+	}
+
+	svcModule := service.NewModule(repo)
+	app.modules.Register(svcModule)
 
 	logger.Log().Infof("registered %d modules", app.modules.Count())
 	return nil
@@ -133,7 +145,7 @@ func (app *App) Modules() *module.Manager {
 }
 
 // Service returns the service instance.
-// Returns nil if the repository module is not enabled.
+// Service is always registered; methods may fail if dependencies are unavailable.
 func (app *App) Service() service.IService {
 	return app.svc
 }

@@ -24,7 +24,7 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 
 ## Features
 - Simple, small footprint using standard libs plus Cobra/Viper/logrus.
-- **Module system** for optional components (database, HTTP, gRPC, queue, etc.).
+- **Module system** for optional components (repository, service, HTTP, gRPC, queue, etc.).
 - Version metadata injected via ldflags (`pkg/version`).
 - Structured logging via `pkg/logger` singleton.
 - Makefile targets for build/run/lint/test/tidy/update.
@@ -42,7 +42,8 @@ The template includes configuration placeholders for common modules:
 
 | Module | Purpose | Config Key | Status |
 |--------|---------|-----------|--------|
-| Database | PostgreSQL/MySQL connectivity | `database` | 🔜 Coming soon |
+| Repository | Database-backed persistence (wraps DB connection) | `database` | ✅ Implemented (enabled when `database.enabled` is true) |
+| Service | Business logic orchestrator (optional deps) | n/a | ✅ Implemented (always registered; repository optional) |
 | HTTP | HTTP REST API server | `http` | 🔜 Coming soon |
 | gRPC | gRPC API server | `grpc` | 🔜 Coming soon |
 
@@ -50,7 +51,7 @@ The template includes configuration placeholders for common modules:
 
 Modules are configured in `config.yaml`:
 
-```yaml
+```
 database:
   enabled: true
   driver: postgres
@@ -59,15 +60,19 @@ database:
   # ... other settings
 ```
 
+- The repository module registers only when `database.enabled` is `true`.
+- The service module always registers; if no repository is available, database operations return clear errors.
+
 See `config/scheme.go` for example module configuration structures.
+
 
 ### Adding Custom Modules
 
 See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom modules. The module system provides:
 
 - **Standard lifecycle**: Init → Start → Stop with health checks
-- **Dependency injection**: Modules can depend on each other via constructor injection
-- **Configuration-driven**: Enable/disable modules via YAML/env vars
+- **Dependency injection**: Modules depend on each other via constructor injection (explicit; no service locator)
+- **Configuration-driven**: Enable/disable modules via YAML/env vars (repository depends on `database.enabled`; service always registers)
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
 
 ## Limitations

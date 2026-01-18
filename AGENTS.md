@@ -93,25 +93,25 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Located in `internal/module/` package; Manager handles lifecycle orchestration.
 - Lifecycle: Init → Start → Stop (Stop happens in reverse order for LIFO cleanup).
 - Registration order determines initialization order; manual wiring in `internal/application.go`.
-- Each module has config in `config/scheme.go` with defaults in `config/init.go`.
-- Module dependencies: use constructor injection (type-safe, explicit).
+- Each module may have config in `config/scheme.go` with defaults in `config/init.go`; some modules (e.g., service) are always on and rely on optional dependencies instead of a config flag.
+- Module dependencies: use constructor injection (type-safe, explicit); allow nil for optional deps and handle gracefully.
 - Keep modules focused and single-purpose; make Init() idempotent.
 - Use goroutines in Start() for background work; respect context timeout in Stop().
 - HealthCheck() must be fast (< 2s); log all lifecycle events.
 - See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
 
 ### Adding a New Module
-1. Define config struct in `config/scheme.go` (e.g., `MyModuleConfig`).
-2. Add defaults in `config/init.go` for all config fields.
-3. Implement `module.Module` interface in `internal/mymodule/module.go`.
-4. Register in `internal/application.go` → `registerModules()` based on config.
-5. Wire dependencies via constructor injection if needed.
-6. Add tests for module lifecycle (Init/Start/Stop/HealthCheck).
+1. Define config struct in `config/scheme.go` when the module is configurable; skip if always-on.
+2. Add defaults in `config/init.go` for all config fields you add.
+3. Implement `module.Module` interface in `internal/<name>/module.go`.
+4. Register in `internal/application.go` → `registerModules()` in dependency order (infrastructure → business logic → transports).
+5. Wire dependencies via constructor injection; pass nil for optional deps and document behavior.
+6. Add tests for module lifecycle (Init/Start/Stop/HealthCheck) and dependency handling.
 7. Document in README.md and MODULE_DEVELOPMENT.md.
 
 ### Module Best Practices
 - Registration order: Infrastructure (DB, cache, queue) → Business logic (repos, services) → Transport (HTTP, gRPC).
-- Constructor injection for dependencies: `NewModuleB(cfg, moduleA)`.
+- Constructor injection for dependencies: `NewModuleB(cfg, moduleA)`; avoid service locators/globals.
 - Non-blocking Start: use `go m.runWorker(ctx)` for long-running operations.
 - Graceful Stop: select on done channel and ctx.Done() with timeout.
 - Error wrapping: use `fmt.Errorf("action: %w", err)` for context.

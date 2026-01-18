@@ -28,9 +28,11 @@ type Module interface {
 
 ## Creating a Module
 
-### Step 1: Define Module Configuration
+### Step 1: Define Module Configuration (when needed)
 
-Add your module's config to `config/scheme.go`:
+Only add configuration when the module is configurable. Some modules (like the service layer) may not need a dedicated config; they can be always-on and rely on optional dependencies.
+
+Example with configuration in `config/scheme.go`:
 
 ```go
 // MyModuleConfig holds settings for MyModule.
@@ -47,7 +49,7 @@ type Scheme struct {
 }
 ```
 
-Add defaults in `config/init.go`:
+Add defaults in `config/init.go` when config exists:
 
 ```go
 func setDefaults() {
@@ -57,6 +59,8 @@ func setDefaults() {
     viper.SetDefault("mymodule.param2", 100)
 }
 ```
+
+If a module is always on and has no config (like the service module), skip the config struct and defaults, and document its optional dependencies instead.
 
 ### Step 2: Implement Module Interface
 
@@ -138,31 +142,47 @@ func (m *Module) HealthCheck(ctx context.Context) error {
 
 ### Step 3: Register Module in Application
 
-In `internal/application.go`, add to `registerModules()`:
+In `internal/application.go`, add to `registerModules()` in dependency order. Example with optional dependency injection:
 
 ```go
 func (app *App) registerModules() error {
-    // Register MyModule if enabled
-    if app.config.MyModule != nil && app.config.MyModule.Enabled {
-        myMod := mymodule.NewModule(app.config.MyModule)
-        app.modules.Register(myMod)
+    // Infrastructure first: repository (enabled only when database is enabled)
+    var repoMod *repository.Module
+    if app.config.Database != nil && app.config.Database.Enabled {
+        repoMod = repository.NewModule(app.config.Database)
+        app.modules.Register(repoMod)
     }
-    
+
+    // Business logic: service module always registers; repository is optional
+    var repo repository.IRepository
+    if repoMod != nil {
+        repo = repoMod.Repository()
+    }
+    svcMod := service.NewModule(repo)
+    app.modules.Register(svcMod)
+
+    // Add more modules (HTTP, gRPC, queues) after business logic
+
     logger.Log().Infof("registered %d modules", app.modules.Count())
     return nil
 }
 ```
 
+Service module guidance:
+- Service is always registered.
+- Dependencies (repository, cache, events, etc.) are injected explicitly and may be nil.
+- Service methods should handle missing dependencies gracefully (return clear errors).
+
 ### Step 4: Handle Module Dependencies
 
-If your module depends on another module, inject dependencies via constructor:
+Inject dependencies explicitly via constructors; avoid global lookups. Dependencies may be optional—if so, accept nil and handle gracefully.
 
 ```go
 // Module B depends on Module A
 func NewModuleB(cfg *config.ModuleBConfig, moduleA *modulea.Module) *ModuleB {
     return &ModuleB{
         config: cfg,
-        depA:   moduleA,
+        depA:   moduleA, // can be nil if optional
     }
 }
 ```
@@ -172,22 +192,29 @@ Register in dependency order in `application.go`:
 ```go
 func (app *App) registerModules() error {
     var modA *modulea.Module
-    
+
     // Register Module A first (dependency)
     if app.config.ModuleA != nil && app.config.ModuleA.Enabled {
         modA = modulea.NewModule(app.config.ModuleA)
         app.modules.Register(modA)
     }
-    
-    // Register Module B (depends on A)
-    if modA != nil && app.config.ModuleB != nil && app.config.ModuleB.Enabled {
-        modB := moduleb.NewModule(app.config.ModuleB, modA)
-        app.modules.Register(modB)
+
+    // Register Module B (depends on A); pass nil if A not enabled
+    var depA *modulea.Module
+    if modA != nil {
+        depA = modA
     }
-    
+    modB := moduleb.NewModule(app.config.ModuleB, depA)
+    app.modules.Register(modB)
+
     return nil
 }
 ```
+
+Guidance:
+- Keep constructor injection explicit and typed.
+- If a dependency is optional, document the behavior when nil (e.g., service returns `repository not available` errors when DB is disabled).
+- Avoid service locators or global registries; pass what you need.
 
 ## Best Practices
 
@@ -199,6 +226,25 @@ func (m *Module) Init(ctx context.Context) error {
     if m.initialized {
         return nil // Already initialized
     }
+```
+
+### 2. Optional Dependencies
+- Accept optional dependencies as constructor params; allow nil.
+- Clearly document and handle behavior when a dependency is missing (return explicit errors, not panics).
+- Example: the service module always registers; when repository is nil (database disabled), methods return `repository not available` errors.
+
+### 3. Dependency Order
+- Register infrastructure before business logic; business logic before transports.
+- Stop happens in reverse order automatically (LIFO) via the manager.
+
+### 4. Fast Health Checks
+- Keep `HealthCheck` under 2s; avoid blocking operations.
+
+### 5. No Global Service Locator
+- Do not fetch dependencies from globals; use explicit constructor injection.
+
+### 6. Graceful Shutdown
+- `Stop` should be idempotent, respect context deadlines, and clean up all resources.
     
     // Do initialization work
     
