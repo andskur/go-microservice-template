@@ -5,11 +5,11 @@ import "testing"
 // mockRepository implements IRepository for testing purposes.
 type mockRepository struct{}
 
-func (m *mockRepository) CreateUser(model interface{}) error {
+func (m *mockRepository) CreateUser(_ interface{}) error {
 	return nil
 }
 
-func (m *mockRepository) UserBy(model interface{}, getter UserGetter) error {
+func (m *mockRepository) UserBy(_ interface{}, _ UserGetter) error {
 	return nil
 }
 
@@ -30,8 +30,8 @@ func TestUserGetter_String(t *testing.T) {
 		getter UserGetter
 		want   string
 	}{
-		{UserUUID, "uuid"},
-		{Email, "email"},
+		{getter: UserUUID, want: "uuid"},
+		{getter: Email, want: "email"},
 	}
 
 	for _, tt := range tests {

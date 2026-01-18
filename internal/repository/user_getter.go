@@ -7,13 +7,16 @@ import (
 // UserGetter represents available user query strategies.
 type UserGetter int
 
-// User getter constants
+// User getter constants.
 const (
+	// UserUUID getter uses the user's UUID field.
 	UserUUID UserGetter = iota
+
+	// Email getter uses the user's Email field.
 	Email
 )
 
-// userGetters is slice of User Getters string representations
+// userGetters is a slice of UserGetter string representations.
 var userGetters = [...]string{
 	UserUUID: "uuid",
 	Email:    "email",

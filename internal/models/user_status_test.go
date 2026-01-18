@@ -7,11 +7,11 @@ func TestUserStatus_String(t *testing.T) {
 		status UserStatus
 		want   string
 	}{
-		{UserActive, "active"},
-		{UserDeleted, "deleted"},
-		{userStatusUnsupported, ""},
-		{UserStatus(-1), ""},
-		{UserStatus(999), ""},
+		{status: UserActive, want: "active"},
+		{status: UserDeleted, want: "deleted"},
+		{status: userStatusUnsupported, want: ""},
+		{status: UserStatus(-1), want: ""},
+		{status: UserStatus(999), want: ""},
 	}
 
 	for _, tt := range tests {
