@@ -378,6 +378,50 @@ This is a basic, generic Go microservice template designed to provide a clear st
 - Add runtime logic: implement `App.Init/Serve/Stop` with proper context/shutdown handling and graceful shutdown.
 - Add tests: follow table-driven patterns; reset global state (Viper) in `t.Cleanup`.
 
+## Keeping Up-to-Date with Template Changes
+
+This project can receive updates from the upstream template: [go-microservice-template](https://github.com/andskur/go-microservice-template).
+
+### Initial setup (downstream projects)
+```bash
+make template-setup
+```
+This will:
+- Add the template remote (`template`)
+- Fetch the latest template changes
+- Create `.template-version` to track sync state
+
+### Checking for updates
+```bash
+make template-status
+make template-diff       # summary diff vs template/main
+make template-diff v1.2.0 # diff against a specific tag
+```
+
+### Syncing updates
+```bash
+make template-fetch      # fetch latest template changes
+make template-sync       # merge template/main into current branch
+make template-sync v1.2.0 # merge a specific tag
+```
+
+After merging:
+- Resolve any conflicts manually
+- Run tests: `make test` (and `make build` if desired)
+- Commit with a clear message (e.g., `chore: sync from template v1.2.0`)
+
+### Files likely to need attention during sync
+- `README.md`, `AGENTS.md` (project-specific docs)
+- `internal/application.go` (module registration)
+- `config/scheme.go` and `config/init.go` (config schema/defaults)
+- `Makefile` (custom targets)
+
+### Best practices
+- Sync regularly to reduce conflicts
+- Keep sync commits separate from feature work
+- Review `make template-diff` before merging
+- Use `.template-version` to record the last synced template ref (updated automatically on successful sync)
+
 ## Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
 

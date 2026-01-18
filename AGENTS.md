@@ -205,8 +205,16 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Scripts
 - `scripts/rename.sh`: automated project rename; invoked via `make rename NEW_NAME=...`.
+- `scripts/template-sync.sh`: template sync helper (setup/status/diff/sync) used by Makefile targets.
 - Validates Go module naming; prompts for confirmation; updates go.mod, imports, Makefile vars, entrypoint, CLI `Use`, Dockerfile, docs; optional git remote update; runs `go mod tidy`.
 - New scripts: add to `scripts/`, make executable, document purpose and invocation here and in README.
+
+## Template Synchronization (for downstream repos)
+- One-time setup: `make template-setup` (adds `template` remote, fetches, creates `.template-version`).
+- Check updates: `make template-status`; summary diff: `make template-diff` (optionally with tag).
+- Sync updates: `make template-fetch` then `make template-sync` (optionally with tag ref).
+- After sync: resolve conflicts if any, run `make test`/`make build`, commit separately (e.g., `chore: sync from template vX.Y.Z`).
+- Likely conflict files: README.md, AGENTS.md, config/scheme.go, config/init.go, internal/application.go, Makefile.
 
 ## CI/CD
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.

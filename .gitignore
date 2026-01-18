@@ -20,6 +20,9 @@ __debug_bin
 
 microservice-template
 
+# Template synchronization metadata (only in downstream repos)
+.template-version
+
 # TODO: add any required ignore patterns here
 
 # Local docker-compose data

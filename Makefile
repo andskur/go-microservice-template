@@ -211,6 +211,31 @@ proto-clean:
 	@find $(PROTO_DIR) -name "*_grpc.pb.go" -type f -delete
 	@echo "Generated proto files removed"
 
+# Template synchronization
+TEMPLATE_REMOTE_NAME := template
+TEMPLATE_REMOTE_URL ?= https://github.com/andskur/go-microservice-template.git
+TEMPLATE_BRANCH ?= main
+
+.PHONY: template-setup
+template-setup:
+	@bash scripts/template-sync.sh setup
+
+.PHONY: template-status
+template-status:
+	@bash scripts/template-sync.sh status
+
+.PHONY: template-fetch
+template-fetch:
+	@bash scripts/template-sync.sh fetch
+
+.PHONY: template-diff
+template-diff:
+	@bash scripts/template-sync.sh diff
+
+.PHONY: template-sync
+template-sync:
+	@bash scripts/template-sync.sh sync
+
 .PHONY: rename
 rename:
 ifndef NEW_NAME
