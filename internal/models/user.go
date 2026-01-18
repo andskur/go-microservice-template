@@ -24,12 +24,12 @@ import (
 //   - UsersToProto([]*User) []*proto.User for slice conversions
 type User struct {
 	UUID      uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	Email     string
 	Name      string
 	Avatar    string
 	Status    UserStatus
-	CreatedAt time.Time
-	UpdatedAt time.Time
 }
 
 // emailRegex is a basic email validation pattern.

@@ -42,7 +42,6 @@ func TestUserGetter_String(t *testing.T) {
 }
 
 func TestUserGetter_Validate(t *testing.T) {
-	// Valid getters
 	if err := UserUUID.Validate(); err != nil {
 		t.Errorf("UserUUID should be valid: %v", err)
 	}
@@ -50,7 +49,6 @@ func TestUserGetter_Validate(t *testing.T) {
 		t.Errorf("Email should be valid: %v", err)
 	}
 
-	// Invalid getter
 	invalid := UserGetter(999)
 	if err := invalid.Validate(); err == nil {
 		t.Error("Invalid getter should return error")

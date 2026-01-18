@@ -11,6 +11,9 @@ import (
 // moduleMockRepository is a simple in-memory repository for testing purposes.
 type moduleMockRepository struct{}
 
+// Ensure moduleMockRepository implements IRepository.
+var _ IRepository = (*moduleMockRepository)(nil)
+
 func (m *moduleMockRepository) CreateUser(_ *models.User) error           { return nil }
 func (m *moduleMockRepository) UserBy(_ *models.User, _ UserGetter) error { return nil }
 
