@@ -24,12 +24,49 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 
 ## Features
 - Simple, small footprint using standard libs plus Cobra/Viper/logrus.
+- **Module system** for optional components (database, HTTP, gRPC, queue, etc.).
 - Version metadata injected via ldflags (`pkg/version`).
 - Structured logging via `pkg/logger` singleton.
 - Makefile targets for build/run/lint/test/tidy/update.
 - CI pipeline: lint/test/build on PRs and `main`; release pipeline auto-tags on `main` and publishes a GitHub release (source-only).
 - Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
 - Rename-friendly: single placeholder name with automated `make rename` target.
+
+## Module System
+
+This template uses a **module-based architecture** for optional components. Modules provide a standard lifecycle (Init → Start → Stop) and can be enabled/disabled via configuration.
+
+### Available Module Slots
+
+The template includes configuration placeholders for common modules:
+
+| Module | Purpose | Config Key | Status |
+|--------|---------|-----------|--------|
+| Database | PostgreSQL/MySQL connectivity | `database` | 🔜 Coming soon |
+| HTTP | HTTP REST API server | `http` | 🔜 Coming soon |
+| gRPC | gRPC API server | `grpc` | 🔜 Coming soon |
+
+### Enabling Modules
+
+Modules are configured in `config.yaml` (see `config.example.yaml` for reference):
+
+```yaml
+database:
+  enabled: true
+  driver: postgres
+  host: localhost
+  port: 5432
+  # ... other settings
+```
+
+### Adding Custom Modules
+
+See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom modules. The module system provides:
+
+- **Standard lifecycle**: Init → Start → Stop with health checks
+- **Dependency injection**: Modules can depend on each other via constructor injection
+- **Configuration-driven**: Enable/disable modules via YAML/env vars
+- **Graceful shutdown**: Automatic cleanup in reverse registration order
 
 ## Limitations
 This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal:
@@ -59,8 +96,15 @@ go-microservice-template/
 │   ├── scheme.go           # Configuration structure definition
 │   └── init_test.go
 │
+├── docs/                   # Documentation
+│   └── MODULE_DEVELOPMENT.md  # Module development guide
+│
 ├── internal/               # Private application code
-│   ├── application.go      # App struct with Init/Serve/Stop lifecycle
+│   ├── module/             # Module system (NEW)
+│   │   ├── module.go       # Module interface definition
+│   │   ├── manager.go      # Module lifecycle manager
+│   │   └── manager_test.go
+│   ├── application.go      # App struct with module orchestration
 │   └── application_test.go
 │
 ├── pkg/                    # Public reusable packages
@@ -76,6 +120,7 @@ go-microservice-template/
 │
 ├── .dockerignore           # Docker build context exclusions
 ├── .golangci.yml           # Linter configuration (extensive rule set)
+├── config.example.yaml     # Example configuration file (NEW)
 ├── Dockerfile              # Multi-stage build (golang:1.24 -> scratch)
 ├── Makefile                # Build targets: build, run, test, lint, tidy, update
 ├── LICENSE                 # MIT License
