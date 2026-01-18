@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestValidationError_Error(t *testing.T) {
 	err := &ValidationError{Field: "email", Message: "is required"}
@@ -12,10 +15,11 @@ func TestValidationError_Error(t *testing.T) {
 
 func TestValidationError_AsError(t *testing.T) {
 	var err error = &ValidationError{Field: "name", Message: "too short"}
-	verr, ok := err.(*ValidationError)
-	if !ok {
+	var verr *ValidationError
+	if !errors.As(err, &verr) {
 		t.Fatalf("expected ValidationError type, got %T", err)
 	}
+
 	if verr.Field != "name" {
 		t.Fatalf("Field = %q, want %q", verr.Field, "name")
 	}

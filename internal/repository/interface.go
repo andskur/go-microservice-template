@@ -1,3 +1,4 @@
+// Package repository defines persistence interfaces and helpers.
 package repository
 
 import "microservice-template/internal/models"

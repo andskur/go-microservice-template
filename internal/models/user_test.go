@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestUser_Validate_Valid(t *testing.T) {
 	user := &User{
@@ -61,8 +64,8 @@ func assertValidationError(t *testing.T, err error, field, message string) {
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
-	verr, ok := err.(*ValidationError)
-	if !ok {
+	var verr *ValidationError
+	if !errors.As(err, &verr) {
 		t.Fatalf("expected ValidationError, got %T", err)
 	}
 	if verr.Field != field {

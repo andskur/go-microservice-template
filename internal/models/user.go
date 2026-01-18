@@ -28,8 +28,8 @@ type User struct {
 	Name      string
 	Avatar    string
 	Status    UserStatus
-	UpdatedAt time.Time
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // emailRegex is a basic email validation pattern.

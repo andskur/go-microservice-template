@@ -49,7 +49,7 @@ func NewService(repository repository.IRepository) IService {
 
 // CreateUser creates a new user in the system.
 // TODO: Add validation, business rules, etc.
-func (s *Service) CreateUser(ctx context.Context, user *models.User) error {
+func (s *Service) CreateUser(_ context.Context, user *models.User) error {
 	logger.Log().Info("creating user")
 
 	if user == nil {
@@ -76,7 +76,7 @@ func (s *Service) CreateUser(ctx context.Context, user *models.User) error {
 
 // GetUserByEmail retrieves a user by email address.
 // TODO: Implement caching when cache module is added.
-func (s *Service) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (s *Service) GetUserByEmail(_ context.Context, email string) (*models.User, error) {
 	logger.Log().Infof("getting user by email: %s", email)
 
 	// TODO: Check cache first (when cache module is added)

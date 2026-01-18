@@ -33,7 +33,7 @@ func NewPostgresRepository(db interface{}) IRepository {
 //	if err != nil {
 //	    return fmt.Errorf("insert user %s into db: %w", user.Email, err)
 //	}
-func (r *PostgresRepository) CreateUser(user *models.User) error {
+func (r *PostgresRepository) CreateUser(_ *models.User) error {
 	logger.Log().Info("PostgresRepository.CreateUser called")
 
 	// TODO: Implement when models and go-pg are added
@@ -56,7 +56,7 @@ func (r *PostgresRepository) CreateUser(user *models.User) error {
 //	if err := query.Select(); err != nil {
 //	    return fmt.Errorf("get user from database by %s: %w", getter.String(), err)
 //	}
-func (r *PostgresRepository) UserBy(user *models.User, getter UserGetter) error {
+func (r *PostgresRepository) UserBy(_ *models.User, getter UserGetter) error {
 	logger.Log().Infof("PostgresRepository.UserBy called with getter: %s", getter.String())
 
 	// Validate getter

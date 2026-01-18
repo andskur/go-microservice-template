@@ -1,3 +1,4 @@
+// Package models contains domain model definitions and helpers.
 package models
 
 import "fmt"

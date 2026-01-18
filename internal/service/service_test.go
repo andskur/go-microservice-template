@@ -12,11 +12,11 @@ import (
 // serviceMockRepository is a simple in-memory repository for testing purposes.
 type serviceMockRepository struct{}
 
-func (m *serviceMockRepository) CreateUser(user *models.User) error {
+func (m *serviceMockRepository) CreateUser(_ *models.User) error {
 	return nil
 }
 
-func (m *serviceMockRepository) UserBy(user *models.User, getter repository.UserGetter) error {
+func (m *serviceMockRepository) UserBy(_ *models.User, _ repository.UserGetter) error {
 	return nil
 }
 
