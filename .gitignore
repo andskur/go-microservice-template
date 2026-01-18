@@ -22,9 +22,5 @@ microservice-template
 
 # TODO: add any required ignore patterns here
 
-# Protobuf generated files
-protocols/**/*.pb.go
-protocols/**/*_grpc.pb.go
-
 # Local docker-compose data
 /data/
