@@ -1,6 +1,10 @@
 package internal
 
-import "testing"
+import (
+	"testing"
+
+	"microservice-template/config"
+)
 
 func TestNewApplication(t *testing.T) {
 	app, err := NewApplication()
@@ -30,6 +34,16 @@ func TestApp_Init_NoModules(t *testing.T) {
 	err = app.Init()
 	if err != nil {
 		t.Errorf("Init should succeed with no modules: %v", err)
+	}
+
+	// Without database configured, no modules should be registered
+	if app.modules.Count() != 0 {
+		t.Errorf("expected 0 modules, got %d", app.modules.Count())
+	}
+
+	// UserService should be nil when database is disabled
+	if app.UserService() != nil {
+		t.Error("UserService should be nil when database is not enabled")
 	}
 }
 
@@ -79,6 +93,32 @@ func TestApp_Version(t *testing.T) {
 	version := app.Version()
 	if version == "" {
 		t.Error("Version() should return non-empty string")
+	}
+}
+
+func TestApp_RegisterModules_WithDatabase(t *testing.T) {
+	app, err := NewApplication()
+	if err != nil {
+		t.Fatalf("NewApplication failed: %v", err)
+	}
+
+	app.config.Database = &config.DatabaseConfig{
+		Enabled: true,
+		Driver:  "postgres",
+		Host:    "localhost",
+		Port:    5432,
+	}
+
+	if err := app.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	if app.modules.Count() != 1 {
+		t.Errorf("expected 1 module, got %d", app.modules.Count())
+	}
+
+	if app.UserService() == nil {
+		t.Error("UserService should be initialized when database is enabled")
 	}
 }
 

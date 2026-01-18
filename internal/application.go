@@ -11,6 +11,8 @@ import (
 
 	"microservice-template/config"
 	"microservice-template/internal/module"
+	"microservice-template/internal/repository"
+	"microservice-template/internal/service"
 	"microservice-template/pkg/logger"
 	"microservice-template/pkg/version"
 )
@@ -21,11 +23,10 @@ type App struct {
 	version *version.Version
 	modules *module.Manager
 
-	// TODO: Add module-specific dependencies here as they are added
-	// Example:
-	// db          *sql.DB              // From database module
-	// userRepo    repository.UserRepository
-	// userService service.UserService
+	// Services (exposed to transports like HTTP/gRPC)
+	// Will be nil if dependent modules (e.g., repository) are not enabled.
+	// Example: userService depends on repository module.
+	userService service.IUsersService
 }
 
 // NewApplication creates a new App instance.
@@ -56,6 +57,9 @@ func (app *App) Init() error {
 		return fmt.Errorf("init modules: %w", err)
 	}
 
+	// At this point, services may still be nil if dependencies are disabled.
+	// Transports (HTTP/gRPC) should check for nil before using services.
+
 	return nil
 }
 
@@ -65,13 +69,20 @@ func (app *App) Init() error {
 // 2. Business logic (repositories, services).
 // 3. Transport (http, grpc).
 func (app *App) registerModules() error {
-	// TODO: Register modules based on config
-	// Example:
-	//
-	// if app.config.Database != nil && app.config.Database.Enabled {
-	//     dbModule := database.NewModule(app.config.Database)
-	//     app.modules.Register(dbModule)
-	// }
+	// Repository module (database-backed) and dependent service
+	if app.config.Database != nil && app.config.Database.Enabled {
+		logger.Log().Info("database enabled, registering repository module")
+
+		repoModule := repository.NewModule(app.config.Database)
+		app.modules.Register(repoModule)
+
+		// Service layer depends on repository
+		app.userService = service.NewUsersService(repoModule.Repository())
+		logger.Log().Info("users service initialized with repository")
+	} else {
+		logger.Log().Info("database not enabled, repository module and user service not registered")
+		app.userService = nil
+	}
 
 	logger.Log().Infof("registered %d modules", app.modules.Count())
 	return nil
@@ -120,6 +131,12 @@ func (app *App) Version() string {
 // Modules returns the module manager (useful for health checks).
 func (app *App) Modules() *module.Manager {
 	return app.modules
+}
+
+// UserService returns the user service instance.
+// Returns nil if the repository module is not enabled.
+func (app *App) UserService() service.IUsersService {
+	return app.userService
 }
 
 // CreateAddr creates an address string from host and port.
