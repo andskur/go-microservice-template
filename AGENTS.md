@@ -88,6 +88,34 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - For CLI dependencies, prefer minimal footprint; avoid heavy frameworks.
 - Check licenses before adding new deps.
 
+## Module System
+- Modules are optional components implementing `module.Module` interface (Init/Start/Stop/HealthCheck).
+- Located in `internal/module/` package; Manager handles lifecycle orchestration.
+- Lifecycle: Init → Start → Stop (Stop happens in reverse order for LIFO cleanup).
+- Registration order determines initialization order; manual wiring in `internal/application.go`.
+- Each module has config in `config/scheme.go` with defaults in `config/init.go`.
+- Module dependencies: use constructor injection (type-safe, explicit).
+- Keep modules focused and single-purpose; make Init() idempotent.
+- Use goroutines in Start() for background work; respect context timeout in Stop().
+- HealthCheck() must be fast (< 2s); log all lifecycle events.
+- See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
+
+### Adding a New Module
+1. Define config struct in `config/scheme.go` (e.g., `MyModuleConfig`).
+2. Add defaults in `config/init.go` for all config fields.
+3. Implement `module.Module` interface in `internal/mymodule/module.go`.
+4. Register in `internal/application.go` → `registerModules()` based on config.
+5. Wire dependencies via constructor injection if needed.
+6. Add tests for module lifecycle (Init/Start/Stop/HealthCheck).
+7. Document in README.md and MODULE_DEVELOPMENT.md.
+
+### Module Best Practices
+- Registration order: Infrastructure (DB, cache, queue) → Business logic (repos, services) → Transport (HTTP, gRPC).
+- Constructor injection for dependencies: `NewModuleB(cfg, moduleA)`.
+- Non-blocking Start: use `go m.runWorker(ctx)` for long-running operations.
+- Graceful Stop: select on done channel and ctx.Done() with timeout.
+- Error wrapping: use `fmt.Errorf("action: %w", err)` for context.
+
 ## Documentation
 - Update README when adding features, flags, or envs.
 - Keep AGENTS.md in sync with build/test/tool changes.

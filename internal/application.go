@@ -2,27 +2,33 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"microservice-template/config"
+	"microservice-template/internal/module"
+	"microservice-template/pkg/logger"
 	"microservice-template/pkg/version"
 )
 
-// App is main microservice application instance that
-// have all necessary dependencies inside structure.
+// App is the main microservice application instance.
 type App struct {
-	// application configuration
-	config *config.Scheme
-
+	config  *config.Scheme
 	version *version.Version
+	modules *module.Manager
 
-	// TODO add all needed dependencies
+	// TODO: Add module-specific dependencies here as they are added
+	// Example:
+	// db          *sql.DB              // From database module
+	// userRepo    repository.UserRepository
+	// userService service.UserService
 }
 
-// NewApplication create new App instance.
+// NewApplication creates a new App instance.
 func NewApplication() (app *App, err error) {
 	ver, err := version.NewVersion()
 	if err != nil {
@@ -32,47 +38,91 @@ func NewApplication() (app *App, err error) {
 	return &App{
 		config:  &config.Scheme{},
 		version: ver,
+		modules: module.NewManager(),
 	}, nil
 }
 
-// Init initialize application and all necessary instances.
+// Init initializes the application and all registered modules.
 func (app *App) Init() error {
-	// TODO add dependencies initialisations
+	ctx := context.Background()
+
+	// Register modules based on configuration
+	if err := app.registerModules(); err != nil {
+		return fmt.Errorf("register modules: %w", err)
+	}
+
+	// Initialize all registered modules
+	if err := app.modules.InitAll(ctx); err != nil {
+		return fmt.Errorf("init modules: %w", err)
+	}
 
 	return nil
 }
 
-// Serve start serving Application service.
-func (app *App) Serve() error {
-	// TODO add all runners that needed in separate goroutines
+// registerModules registers enabled modules based on configuration.
+// Modules are registered in dependency order:
+// 1. Infrastructure (database, cache, queue).
+// 2. Business logic (repositories, services).
+// 3. Transport (http, grpc).
+func (app *App) registerModules() error {
+	// TODO: Register modules based on config
+	// Example:
+	//
+	// if app.config.Database != nil && app.config.Database.Enabled {
+	//     dbModule := database.NewModule(app.config.Database)
+	//     app.modules.Register(dbModule)
+	// }
 
-	// Gracefully shutdown the server
+	logger.Log().Infof("registered %d modules", app.modules.Count())
+	return nil
+}
+
+// Serve starts all modules and waits for shutdown signal.
+func (app *App) Serve() error {
+	ctx := context.Background()
+
+	// Start all modules
+	if err := app.modules.StartAll(ctx); err != nil {
+		return fmt.Errorf("start modules: %w", err)
+	}
+
+	logger.Log().Info("application is running, press Ctrl+C to stop")
+
+	// Wait for shutdown signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	<-quit
+	logger.Log().Info("shutdown signal received, stopping gracefully...")
 
 	return nil
 }
 
-// Stop shutdown the application.
+// Stop gracefully shuts down all modules.
 func (app *App) Stop() error {
-	// TODO shutdown all dependencies that need to be stopped
+	// Create context with timeout for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	return nil
+	return app.modules.StopAll(ctx)
 }
 
-// Config return App config Scheme.
+// Config returns the application configuration.
 func (app *App) Config() *config.Scheme {
 	return app.config
 }
 
-// Version return application current version.
+// Version returns the application version string.
 func (app *App) Version() string {
 	return app.version.String()
 }
 
-// CreateAddr is create address string from host and port.
+// Modules returns the module manager (useful for health checks).
+func (app *App) Modules() *module.Manager {
+	return app.modules
+}
+
+// CreateAddr creates an address string from host and port.
 func CreateAddr(host string, port int) string {
 	return fmt.Sprintf("%s:%v", host, port)
 }
