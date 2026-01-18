@@ -16,6 +16,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
+- Local stack helpers: `make compose-up`, `make compose-down`, `make compose-restart` (Postgres + migrations + Redis).
 
 ## Testing guidance
 - Place tests alongside code (`*_test.go`).
