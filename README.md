@@ -32,6 +32,66 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
 - Rename-friendly: single placeholder name with automated `make rename` target.
 
+## Project Structure
+```
+go-microservice-template/
+│
+├── .github/workflows/
+│   ├── ci.yml              # CI: lint, test, build on PRs and main
+│   └── release.yml         # Release: auto-tag and GitHub release on main
+│
+├── cmd/                    # Command-line interface
+│   ├── microservice-template.go  # Main entry; builds root command and executes CLI
+│   ├── root/               # Root command, version template, config initialization
+│   │   ├── root.go
+│   │   └── root_test.go
+│   └── serve/              # Serve command; lifecycle hooks (PreRun/RunE/PostRun)
+│       ├── serve.go
+│       └── serve_test.go
+│
+├── config/                 # Configuration management
+│   ├── init.go             # Viper defaults (env=prod)
+│   ├── scheme.go           # Configuration structure definition
+│   └── init_test.go
+│
+├── docs/                   # Documentation
+│   └── MODULE_DEVELOPMENT.md  # Module development guide
+│
+├── internal/               # Private application code
+│   ├── module/             # Module system
+│   │   ├── module.go       # Module interface definition
+│   │   ├── manager.go      # Module lifecycle manager
+│   │   └── manager_test.go
+│   ├── models/             # Domain models (User, statuses, validation)
+│   │   ├── user.go
+│   │   ├── user_status.go
+│   │   ├── validation_error.go
+│   │   └── *_test.go
+│   ├── application.go      # App struct with module orchestration
+│   └── application_test.go
+│
+├── pkg/                    # Public reusable packages
+│   ├── logger/             # Logrus singleton for structured logging
+│   │   ├── logger.go
+│   │   └── logger_test.go
+│   └── version/            # Version metadata injected via ldflags
+│       ├── version.go
+│       └── version_test.go
+│
+├── scripts/                # Automation scripts
+│   └── rename.sh           # Automated project rename script
+│
+├── .dockerignore           # Docker build context exclusions
+├── .golangci.yml           # Linter configuration (extensive rule set)
+├── Dockerfile              # Multi-stage build (golang:1.24 -> scratch)
+├── Makefile                # Build targets: build, run, test, lint, tidy, update
+├── LICENSE                 # MIT License
+├── README.md               # Project documentation
+├── AGENTS.md               # Development guidelines
+├── go.mod                  # Go module definition
+└── go.sum                  # Dependency checksums
+```
+
 ## Module System
 
 This template uses a **module-based architecture** for optional components. Modules provide a standard lifecycle (Init → Start → Stop) and can be enabled/disabled via configuration.
