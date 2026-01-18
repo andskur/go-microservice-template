@@ -75,11 +75,36 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
 - **Configuration-driven**: Enable/disable modules via YAML/env vars (repository depends on `database.enabled`; service always registers)
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
 
+## CLI
+- Root command name: `microservice-template`.
+- Subcommands: `serve` (current runtime hook). Add more via `cmd/<name>` and register on root.
+- Version output: `./microservice-template --version` (ldflags populate `pkg/version`).
+- `serve` lifecycle: `PreRun` logs version; `RunE` should start your workloads; `PostRun` always stops app.
+- Adding a new command (example):
+  ```go
+  // cmd/health/health.go
+  package health
+
+  import "github.com/spf13/cobra"
+
+  func Cmd() *cobra.Command {
+      return &cobra.Command{
+          Use:   "health",
+          Short: "Health probe",
+          RunE: func(_ *cobra.Command, _ []string) error {
+              // add checks here
+              return nil
+          },
+      }
+  }
+  ```
+  Register it in `cmd/microservice-template.go`: `rootCmd.AddCommand(health.Cmd())`.
+
 ## Models & Enums
-- Models live in `internal/models`; they are **pure data** (no DB hooks/tags). Keep database concerns (tags/hooks/status string fields, timestamps) in the repository layer.
+- Location: `internal/models` with pure data structs (no DB hooks/tags); keep DB concerns (tags/hooks/status string fields, timestamps) in repositories.
 - Validation: implement `Validate() error` and return `*models.ValidationError` (`Field`, `Message`) for structured errors.
-- Enums: use typed ints with string mapping via `String()` and parsing via `UserStatusFromString()` (case-insensitive). Add proto/JWT conversions later if needed.
-- Defaults: repositories/services can set defaults (e.g., status) and timestamps; models stay lean.
+- Enums: typed ints with `String()` and case-insensitive `UserStatusFromString()`; add proto/JWT conversions later if needed.
+- Defaults: set in repositories/services (e.g., status/timestamps); models stay lean.
 
 ### Example: User Model
 ```go
