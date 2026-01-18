@@ -123,6 +123,15 @@ test:
 clean:
 	rm $(BUILD_OUT_DIR)/$(APP)
 
+# Docker Compose helpers
+.PHONY: compose-up
+compose-up:
+	docker-compose up -d
+
+.PHONY: compose-down
+compose-down:
+	docker-compose down
+
 # The test-coverage target runs go test with coverage enabled and generates a coverage report
 test-coverage:
 	go test -coverprofile=coverage.out ./...

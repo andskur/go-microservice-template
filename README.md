@@ -133,10 +133,10 @@ make migrate-drop         # Drop all tables (⚠️ DANGER - requires confirmati
 **Local development with Docker Compose:**
 ```bash
 # Start Postgres, Redis, and auto-run migrations (uses db/migrations)
-docker-compose up -d
+make compose-up
 
 # Stop services
-docker-compose down
+make compose-down
 ```
 
 For production deployments, run migrations before starting the application or use a separate migration job in your deployment pipeline.
