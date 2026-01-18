@@ -49,9 +49,18 @@ The template includes configuration placeholders for common modules:
 
 ### Enabling Modules
 
-Modules are configured in `config.yaml`:
+Configuration can come from env vars (recommended) or a config file (`config.yaml` is optional). Viper merges: flags > env vars > config file.
 
+**Env example (preferred):**
+```bash
+export DATABASE_ENABLED=true
+export DATABASE_DRIVER=postgres
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
 ```
+
+**config.yaml example (optional):**
+```yaml
 database:
   enabled: true
   driver: postgres
@@ -60,10 +69,10 @@ database:
   # ... other settings
 ```
 
-- The repository module registers only when `database.enabled` is `true`.
+- The repository module registers only when `database.enabled` (or `DATABASE_ENABLED`) is `true`.
 - The service module always registers; if no repository is available, database operations return clear errors.
 
-See `config/scheme.go` for example module configuration structures.
+See `config/scheme.go` for configuration structure definitions.
 
 
 ### Adding Custom Modules
@@ -124,6 +133,28 @@ if err := user.Validate(); err != nil {
 }
 ```
 
+### Creating a New Model (pattern)
+```go
+// internal/models/widget.go
+package models
+
+type Widget struct {
+    ID    uuid.UUID
+    Name  string
+    State WidgetState
+}
+
+func (w *Widget) Validate() error {
+    if w.Name == "" {
+        return newValidationError("name", "is required")
+    }
+    if w.State < WidgetActive || w.State >= widgetStateUnsupported {
+        return newValidationError("state", "invalid value")
+    }
+    return nil
+}
+```
+
 ### Example: UserStatus Enum
 ```go
 // internal/models/user_status.go
@@ -135,6 +166,41 @@ if err != nil {
     // invalid value
 }
 fmt.Println(parsed == models.UserDeleted) // true
+```
+
+### Creating a New Enum (pattern)
+```go
+// internal/models/widget_state.go
+package models
+
+type WidgetState int
+
+const (
+    WidgetActive WidgetState = iota
+    WidgetDisabled
+    widgetStateUnsupported
+)
+
+var widgetStates = [...]string{
+    WidgetActive:   "active",
+    WidgetDisabled: "disabled",
+}
+
+func (s WidgetState) String() string {
+    if s < 0 || int(s) >= len(widgetStates) {
+        return ""
+    }
+    return widgetStates[s]
+}
+
+func WidgetStateFromString(v string) (WidgetState, error) {
+    for i, r := range widgetStates {
+        if strings.EqualFold(v, r) {
+            return WidgetState(i), nil
+        }
+    }
+    return widgetStateUnsupported, fmt.Errorf("invalid widget state %q", v)
+}
 ```
 
 ## Limitations
