@@ -76,11 +76,41 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
 
 ## Models & Enums
-- Models live in `internal/models`; they are **pure data** (no DB hooks/tags).
-- Validation uses `Validate() error` returning `*models.ValidationError` with `Field` and `Message` for structured errors.
-- Enums follow the `UserStatus` pattern: typed int, string mapping via `String()`, parsing via `FromString` (case-insensitive).
-- Database concerns (tags/hooks/status string fields, timestamps) belong in the repository layer; add go-pg tags/hooks later if you choose that driver.
-- Keep constructors/helpers optional; repositories/services can set defaults (e.g., status) and timestamps.
+- Models live in `internal/models`; they are **pure data** (no DB hooks/tags). Keep database concerns (tags/hooks/status string fields, timestamps) in the repository layer.
+- Validation: implement `Validate() error` and return `*models.ValidationError` (`Field`, `Message`) for structured errors.
+- Enums: use typed ints with string mapping via `String()` and parsing via `UserStatusFromString()` (case-insensitive). Add proto/JWT conversions later if needed.
+- Defaults: repositories/services can set defaults (e.g., status) and timestamps; models stay lean.
+
+### Example: User Model
+```go
+// internal/models/user.go
+user := &models.User{
+    Email:  "test@example.com",
+    Name:   "Jane Doe",
+    Status: models.UserActive,
+}
+
+if err := user.Validate(); err != nil {
+    if verr, ok := err.(*models.ValidationError); ok {
+        // structured error with field context
+        log.Printf("field=%s msg=%s", verr.Field, verr.Message)
+    }
+    return err
+}
+```
+
+### Example: UserStatus Enum
+```go
+// internal/models/user_status.go
+status := models.UserActive
+fmt.Println(status.String()) // "active"
+
+parsed, err := models.UserStatusFromString("DELETED")
+if err != nil {
+    // invalid value
+}
+fmt.Println(parsed == models.UserDeleted) // true
+```
 
 ## Limitations
 This is a basic, generic Go microservice template designed to provide a clear structure and foundational tooling. It remains intentionally minimal.
