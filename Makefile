@@ -157,7 +157,7 @@ lint-install:
 
 # Protobuf configuration
 PROTO_DIR := ./protocols
-PROTO_REPO ?= https://github.com/yourorg/your-protocols.git
+PROTO_REPO ?= https://github.com/andskur/protocols-template.git
 PROTO_BRANCH ?= main
 
 .PHONY: proto-install
@@ -168,12 +168,17 @@ proto-install:
 	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	@echo "Proto tools installed successfully"
 
+.PHONY: buf-install
+buf-install:
+	@which buf > /dev/null || (echo "Installing Buf..." && go install github.com/bufbuild/buf/cmd/buf@latest)
+	@echo "Buf installed successfully"
+
 .PHONY: proto-setup
 proto-setup:
 ifndef PROTO_REPO
 	@echo "Error: PROTO_REPO parameter is required"
-	@echo "Usage: make proto-setup PROTO_REPO=git@github.com:yourorg/your-protocols.git"
-	@echo "   or: make proto-setup PROTO_REPO=https://github.com/yourorg/your-protocols.git"
+	@echo "Usage: make proto-setup PROTO_REPO=git@github.com:andskur/protocols-template.git"
+	@echo "   or: make proto-setup PROTO_REPO=https://github.com/andskur/protocols-template.git"
 	@exit 1
 endif
 	@echo "Adding protobuf subtree from $(PROTO_REPO)..."
@@ -203,6 +208,52 @@ endif
 		       --go-grpc_opt=paths=source_relative \
 		       *.proto
 	@echo "Proto generation complete for $(PROTO_PACKAGE)"
+
+.PHONY: proto-generate-all
+proto-generate-all:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@echo "Generating Go code from all proto packages under $(PROTO_DIR)..."
+	@cd $(PROTO_DIR) && find . -type f -name '*.proto' -print0 | xargs -0 -n1 dirname | sort -u | while read -r dir; do \
+		cd $(PROTO_DIR)/$$dir && \
+		protoc --go_out=paths=source_relative:. \
+		       --go_opt=paths=source_relative \
+		       --go-grpc_out=paths=source_relative:. \
+		       --go-grpc_opt=paths=source_relative \
+		       *.proto; \
+	done
+	@echo "Proto generation complete for all packages"
+
+.PHONY: buf-lint
+buf-lint:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf lint
+
+.PHONY: buf-breaking
+buf-breaking:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf breaking --against '.git#branch=main'
+
+.PHONY: buf-generate
+buf-generate:
+ifndef PROTO_PACKAGE
+	@echo "Error: PROTO_PACKAGE parameter is required"
+	@echo "Usage: make buf-generate PROTO_PACKAGE=user"
+	@exit 1
+endif
+	@test -d $(PROTO_DIR)/$(PROTO_PACKAGE) || (echo "Error: $(PROTO_DIR)/$(PROTO_PACKAGE) directory not found" && exit 1)
+	@cd $(PROTO_DIR)/$(PROTO_PACKAGE) && buf generate
+	@echo "Buf generation complete for $(PROTO_PACKAGE)"
+
+.PHONY: buf-generate-all
+buf-generate-all:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf generate
+	@echo "Buf generation complete for all packages"
+
+.PHONY: buf-validate
+buf-validate:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf lint && buf generate --template buf.gen.yaml --path . >/dev/null
 
 .PHONY: proto-clean
 proto-clean:

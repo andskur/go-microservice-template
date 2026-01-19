@@ -109,24 +109,30 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Handler registration is uncommented in `internal/grpc/module.go` (`registerHandlers`).
 - Health: standard `grpc.health.v1` service registered automatically.
 - Middleware: logging + recovery (no Sentry). Logging at Info for requests, Error for failures.
-- Proto conversions live in `internal/grpc/conversions.go` (keeps models free of proto deps).
-- Example service: `protocols/user` with `GetUser` and `CreateUser`; replace via subtree or direct files.
+- Proto conversions live in `internal/grpc/` (keep models free of proto deps).
+- Protocols are sourced via subtree from `https://github.com/andskur/protocols-template.git`; no bundled example is kept locally.
 
 ### Protobuf Workflow
 - Targets in Makefile:
   - `make proto-install`: install protoc plugins (go, go-grpc).
-  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree.
+  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree (default: andskur/protocols-template).
   - `make proto-update`: update subtree.
-  - `make proto-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>/*.proto`.
+  - `make proto-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>/*.proto` (protoc).
+  - `make proto-generate-all`: generate Go code from all packages (protoc).
+  - `make buf-install`: install Buf CLI.
+  - `make buf-lint`: lint protos with Buf.
+  - `make buf-breaking`: check breaking changes vs main.
+  - `make buf-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>` (Buf).
+  - `make buf-generate-all`: generate Go code for all packages (Buf).
   - `make proto-clean`: remove generated `.pb.go` files.
   - `make test-grpc`: run gRPC package tests (unit + integration).
-- Generated files are ignored (.gitignore). Run `make proto-generate PROTO_PACKAGE=user` for the example.
+- Generated files are ignored (.gitignore). Pull the shared protocols repo via subtree before generating.
 
 ### Handler Patterns
-- Implement handlers in `internal/grpc/handlers.go` (example `UserHandlers`).
+- Implement handlers under `internal/grpc/` for your services.
 - Depend on `service.IService`; validate inputs; return gRPC status errors.
-- Register services in `registerHandlers()`; example already wired for user service.
-- Use conversions from `internal/grpc/conversions.go` for model↔proto.
+- Register services in `registerHandlers()`.
+- Add conversion helpers under `internal/grpc/` for model↔proto mappings.
 
 ### Repository Layer with go-pg
 - Repository module wraps `*pg.DB` connection and implements `IRepository` interface.
@@ -218,17 +224,18 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## CI/CD
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
-  - CI: lint/test/build on PRs and `main` via `make lint`, `make test`, `make build`.
-  - Release: reruns lint/test/build, auto-tags incrementally (`v1`, `v2`, …), creates GitHub release on `main`.
-- Branch protection recommended: require CI checks before merge; limit direct pushes to `main`.
+- CI: lint/test/build on PRs and `main` via `make lint`, `make test`, `make build`.
+- Release: reruns lint/test/build, auto-tags incrementally (`v1`, `v2`, …), creates GitHub release on `main`.
+- Branch protection recommended: require CI checks (`lint`, `test`, `build`) to pass before merging to `main` and limit direct pushes.
 
 ## Versioning
 - `Makefile` injects name/tag/commit/branch/remote/build date into `pkg/version` via ldflags.
 - `pkg/version` formats multi-line version output; handles unspecified values.
+- Protocols: source from `https://github.com/andskur/protocols-template.git` via subtree; generate locally with Buf or protoc.
 
 ## Extending the template
 - Add config: update `config/scheme.go`, defaults in `config/init.go`, bind flags in `cmd/root`; test bindings.
-- Add commands: create `cmd/<name>` with cobra.Command, register on root in entrypoint.
+- Add commands: create `cmd/<name>` with `cobra.Command`, register on root in entrypoint.
 - Add runtime logic: implement `App.Init/Serve/Stop` with proper shutdown; use contexts.
 - Add tests: follow table-driven patterns; reset global state (Viper) in `t.Cleanup`.
 
@@ -238,3 +245,4 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep changes minimal and reversible.
 - Run lint/tests before submitting changes.
 - If adding tools or scripts to `scripts/`, document invocation and purpose in this file.
+

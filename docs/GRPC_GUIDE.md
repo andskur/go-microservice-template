@@ -7,7 +7,7 @@ This guide explains how to use the gRPC module in the microservice template.
 - Module path: `internal/grpc/` (module pattern: Init → Start → Stop → HealthCheck).
 - Health: standard `grpc.health.v1` service is registered.
 - Middleware: logging + recovery (no Sentry).
-- Example service: `protocols/user/` with `GetUser` and `CreateUser` methods.
+- Protocol source is expected to come from the shared protocols repo (git subtree), not bundled locally.
 
 ## Configuration
 
@@ -26,45 +26,36 @@ Env vars map with uppercase and underscores (e.g., `GRPC_ENABLED`, `GRPC_PORT`).
 
 ## Protobuf Workflow
 
-1) Install tooling (one-time):
+You can use either protoc (existing) or Buf (recommended). The default protocols repo is `https://github.com/andskur/protocols-template.git` and is pulled via git subtree.
+
+### Buf workflow (recommended)
 ```bash
-make proto-install
+make buf-install                     # Install Buf CLI
+make buf-lint                        # Lint protos
+make buf-generate PROTO_PACKAGE=user # Generate Go code for one package
+make buf-generate-all                # Generate Go code for all packages
 ```
 
-2) (Optional) Replace example protocols with your own via subtree:
+### Protoc workflow (traditional)
 ```bash
-make proto-setup PROTO_REPO=git@github.com:yourorg/your-protocols.git
-# or HTTPS
-make proto-setup PROTO_REPO=https://github.com/yourorg/your-protocols.git
-```
-
-3) Generate code for a package:
-```bash
+make proto-install                   # Install protoc plugins
+make proto-setup                     # Add protocols via subtree (uses PROTO_REPO default)
 make proto-generate PROTO_PACKAGE=user
-```
-
-4) Clean generated code:
-```bash
+make proto-generate-all
 make proto-clean
 ```
 
 ## Handler Implementation Pattern
 
-- Handlers live in `internal/grpc/handlers.go` (example: `UserHandlers`).
-- Each handler depends on the service layer (`service.IService`).
-- Register handlers inside `module.go -> registerHandlers()` (already uncommented).
+Handlers for specific services should live under `internal/grpc/` and register via `registerHandlers()`. Pull generated protos from the shared protocols repo first, then add conversions and handlers for your services.
 
-### Example: CreateUser and GetUser
-- Handlers validate input, call service methods, and convert models to proto using helpers in `internal/grpc/conversions.go`.
-- Status codes use `google.golang.org/grpc/status` and `codes`.
+### Example pattern
+- Validate inputs, call service methods, and convert models to proto.
+- Use `google.golang.org/grpc/status` and `codes` for errors.
 
 ## Proto Conversion Helpers
 
-Located in `internal/grpc/conversions.go`:
-- `userToProto(*models.User) *userProto.User`
-- `userFromProto(*userProto.User) *models.User`
-- `userStatusToProto(models.UserStatus) userProto.UserStatus`
-- `userStatusFromProto(userProto.UserStatus) models.UserStatus`
+Add conversion helpers for your services under `internal/grpc/` (e.g., `conversions.go` per service). These should map between internal models and generated proto types.
 
 ## Health Checks
 
@@ -93,17 +84,14 @@ make test-grpc
 ```bash
 grpcurl -plaintext localhost:9090 list
 grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
-grpcurl -plaintext -d '{"email":"test@example.com","name":"Test User"}' localhost:9090 user.v1.UserService/CreateUser
-grpcurl -plaintext -d '{"email":"test@example.com"}' localhost:9090 user.v1.UserService/GetUser
 ```
 
 ## Adding New gRPC Services
 
-1. Add `.proto` in `protocols/<service>/`.
-2. Run `make proto-generate PROTO_PACKAGE=<service>`.
-3. Add conversion helpers in `internal/grpc/conversions.go` (or a new file if distinct types).
-4. Implement handlers using `service.IService` (or other dependencies) in `internal/grpc/handlers.go` or new handler files.
-5. Register in `module.go -> registerHandlers()`.
+1. Pull/update protocols from the shared repo (`make proto-setup` / `make proto-update`).
+2. Generate code (Buf preferred): `make buf-generate PROTO_PACKAGE=<service>`.
+3. Add conversion helpers in `internal/grpc/` for your types.
+4. Implement handlers using `service.IService` (or other deps) and register them in `registerHandlers()`.
 
 ## Production Notes
 - Keep health checks fast (<2s).

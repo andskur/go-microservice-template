@@ -506,16 +506,17 @@ internal/
 - Registration: optional, enabled when `grpc.enabled=true` in config; wired in `internal/application.go` after service module.
 - Health: standard `grpc.health.v1` service registered in `Server.RegisterHealthService()`.
 - Middleware: logging and recovery interceptors (no Sentry).
-- Handler registration: done in `module.go -> registerHandlers()` (uncommented, ready to extend).
-- Conversions: proto helpers live in `internal/grpc/conversions.go` (keeps models package free of proto deps).
-- Example service: `protocols/user` with two methods (`GetUser`, `CreateUser`).
+- Handler registration: add your handlers in `module.go -> registerHandlers()` (currently empty; populate after generating protos).
+- Conversions: add proto helpers under `internal/grpc/` (keeps models package free of proto deps).
+- Protocols: pull from the shared repo (`https://github.com/andskur/protocols-template.git`) via subtree; no bundled example is kept locally.
 
 ### Adding a New gRPC Service
-1. Add `.proto` under `protocols/<service>/` and run `make proto-generate PROTO_PACKAGE=<service>`.
-2. Add conversion helpers in `internal/grpc/conversions.go` (or a new file) for your types and enums.
-3. Implement handlers in `internal/grpc/` using `service.IService` (or other deps); return gRPC status errors.
-4. Register handlers in `module.go -> registerHandlers()`.
-5. Keep HealthCheck fast (<2s); server already registers standard health service.
+1. Pull/update protocols: `make proto-setup` / `make proto-update` (subtree from protocols-template).
+2. Generate code (Buf recommended): `make buf-generate PROTO_PACKAGE=<service>` or use `make proto-generate PROTO_PACKAGE=<service>`.
+3. Add conversion helpers in `internal/grpc/` for your types and enums.
+4. Implement handlers in `internal/grpc/` using `service.IService` (or other deps); return gRPC status errors.
+5. Register handlers in `module.go -> registerHandlers()`.
+6. Keep HealthCheck fast (<2s); server already registers standard health service.
 
 ## Troubleshooting
 

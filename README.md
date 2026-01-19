@@ -16,7 +16,7 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - gRPC tests: `make test-grpc` (runs gRPC package including integration).
 - Coverage: `make test-coverage` (writes `coverage.out`).
 - Tidy deps: `make tidy`; update deps: `make update`.
-- gRPC quickstart: see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md); enable with `GRPC_ENABLED=true`, test with grpcurl.
+- gRPC quickstart: see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md); enable with `GRPC_ENABLED=true`, test with grpcurl; use shared protocols from `https://github.com/andskur/protocols-template.git`.
 
 ### Renaming the project
 - Command: `make rename NEW_NAME=my-service` (required parameter).
@@ -43,13 +43,13 @@ go-microservice-template/
 ├── docs/                       # Additional guides (incl. GRPC_GUIDE)
 ├── internal/
 │   ├── application.go          # App wiring + module registration
-│   ├── grpc/                   # gRPC module (server, handlers, conversions)
+│   ├── grpc/                   # gRPC module (server, interceptors)
 │   ├── module/                 # Module interface/manager
 │   ├── repository/             # Repository module (optional)
 │   ├── service/                # Business logic module
 │   └── models/                 # Domain models/enums
 ├── pkg/                        # Reusable packages (logger, version)
-├── protocols/                  # Example protobuf definitions (replaceable)
+├── protocols/                  # Protocol definitions pulled via subtree (no bundled example)
 ├── scripts/                    # Automation scripts (rename)
 ├── .github/workflows/          # CI/CD pipelines
 ├── Dockerfile                  # Multi-stage container build

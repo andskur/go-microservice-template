@@ -1,69 +1,41 @@
 # Protocol Buffers
 
-This directory contains protobuf definitions for gRPC services.
+This directory hosts protobuf definitions consumed by this microservice. The recommended source of truth is the shared protocols template repository.
 
-## Current Structure
+## Source of Truth
 
-An example `user` service is included to demonstrate the gRPC pattern. Replace it with your own protocols for production use.
+Default protocols repository: `https://github.com/andskur/protocols-template.git` (configured via `PROTO_REPO` in the Makefile). Use git subtree to pull updates into `protocols/`.
 
-## Replacing with Your Own Protocols
-
-### Option 1: Use Git Subtree (Recommended for shared protocols)
-
-1. Remove example protocols:
-   ```bash
-   rm -rf protocols/user
-   ```
-
-2. Update `PROTO_REPO` in `Makefile` to your protocols repository.
-
-3. Add your protocols as a subtree:
-   ```bash
-   make proto-setup PROTO_REPO=git@github.com:yourorg/your-protocols.git
-   # or
-   make proto-setup PROTO_REPO=https://github.com/yourorg/your-protocols.git
-   ```
-
-4. Update protocols from remote:
-   ```bash
-   make proto-update
-   ```
-
-### Option 2: Direct Replacement (Simpler for single-repo workflows)
-
-1. Remove example protocols:
-   ```bash
-   rm -rf protocols/user
-   ```
-
-2. Add your own `.proto` files under `protocols/<yourservice>/`.
-
-3. Generate Go code:
-   ```bash
-   make proto-generate PROTO_PACKAGE=<yourservice>
-   ```
-
-## Generating Go Code
-
-After adding or updating `.proto` files:
+## Getting Protocols (Git Subtree, Recommended)
 
 ```bash
-# Install tools (one-time)
-make proto-install
+# Add protocols from the shared repo
+make proto-setup PROTO_REPO=https://github.com/andskur/protocols-template.git
 
-# Generate code for a specific package
-make proto-generate PROTO_PACKAGE=user
-
-# Clean generated files
-make proto-clean
+# Pull updates later
+make proto-update
 ```
 
-## Example Service
+## Code Generation
 
-The included `user` service demonstrates:
-- Minimal CRUD surface (CreateUser, GetUser)
-- Enum handling (UserStatus)
-- Timestamp usage
-- UUID as bytes
+You can use either protoc (existing) or Buf (recommended). Ensure tools are installed first (`make proto-install` and/or `make buf-install`).
 
-See `internal/grpc/handlers.go` for handler implementation examples.
+### Buf workflow (recommended)
+```bash
+make buf-lint                    # Lint protos
+make buf-generate PROTO_PACKAGE=user   # Generate Go code for one package
+make buf-generate-all            # Generate Go code for all packages
+```
+
+### Protoc workflow (traditional)
+```bash
+make proto-install               # Install protoc plugins
+make proto-generate PROTO_PACKAGE=user  # Generate Go code for one package
+make proto-generate-all          # Generate Go code for all packages
+make proto-clean                 # Remove generated files
+```
+
+## Notes
+- Generated `.pb.go` files should be consumed by this service but not committed back to the shared protocols repo.
+- The bundled example protocols have been removed; pull the shared protocols-template instead.
+- See `docs/GRPC_GUIDE.md` for detailed guidance and comparison of Buf vs. protoc workflows.

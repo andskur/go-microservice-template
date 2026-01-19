@@ -1,3 +1,4 @@
+// Package grpc provides gRPC server helpers (interceptors, server wiring).
 package grpc
 
 import (

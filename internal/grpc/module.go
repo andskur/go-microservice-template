@@ -7,7 +7,6 @@ import (
 	"microservice-template/config"
 	"microservice-template/internal/service"
 	"microservice-template/pkg/logger"
-	userProto "microservice-template/protocols/user"
 )
 
 // Module implements module.Module interface for gRPC server.
@@ -43,8 +42,6 @@ func (m *Module) Init(_ context.Context) error {
 	if err := m.server.RegisterHealthService(); err != nil {
 		return fmt.Errorf("register health service: %w", err)
 	}
-
-	m.registerHandlers()
 
 	logger.Log().Infof("%s module initialized successfully", m.Name())
 	return nil
@@ -89,12 +86,4 @@ func (m *Module) HealthCheck(_ context.Context) error {
 	}
 
 	return nil
-}
-
-// registerHandlers registers gRPC service handlers.
-func (m *Module) registerHandlers() {
-	userHandlers := NewUserHandlers(m.service)
-	userProto.RegisterUserServiceServer(m.server.Server(), userHandlers)
-
-	logger.Log().Info("user service handlers registered")
 }
