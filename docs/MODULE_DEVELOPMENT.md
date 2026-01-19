@@ -28,9 +28,11 @@ type Module interface {
 
 ## Creating a Module
 
-### Step 1: Define Module Configuration
+### Step 1: Define Module Configuration (when needed)
 
-Add your module's config to `config/scheme.go`:
+Only add configuration when the module is configurable. Some modules (like the service layer) may not need a dedicated config; they can be always-on and rely on optional dependencies.
+
+Example with configuration in `config/scheme.go`:
 
 ```go
 // MyModuleConfig holds settings for MyModule.
@@ -47,7 +49,7 @@ type Scheme struct {
 }
 ```
 
-Add defaults in `config/init.go`:
+Add defaults in `config/init.go` when config exists:
 
 ```go
 func setDefaults() {
@@ -57,6 +59,8 @@ func setDefaults() {
     viper.SetDefault("mymodule.param2", 100)
 }
 ```
+
+If a module is always on and has no config (like the service module), skip the config struct and defaults, and document its optional dependencies instead.
 
 ### Step 2: Implement Module Interface
 
@@ -138,31 +142,47 @@ func (m *Module) HealthCheck(ctx context.Context) error {
 
 ### Step 3: Register Module in Application
 
-In `internal/application.go`, add to `registerModules()`:
+In `internal/application.go`, add to `registerModules()` in dependency order. Example with optional dependency injection:
 
 ```go
 func (app *App) registerModules() error {
-    // Register MyModule if enabled
-    if app.config.MyModule != nil && app.config.MyModule.Enabled {
-        myMod := mymodule.NewModule(app.config.MyModule)
-        app.modules.Register(myMod)
+    // Infrastructure first: repository (enabled only when database is enabled)
+    var repoMod *repository.Module
+    if app.config.Database != nil && app.config.Database.Enabled {
+        repoMod = repository.NewModule(app.config.Database)
+        app.modules.Register(repoMod)
     }
-    
+
+    // Business logic: service module always registers; repository is optional
+    var repo repository.IRepository
+    if repoMod != nil {
+        repo = repoMod.Repository()
+    }
+    svcMod := service.NewModule(repo)
+    app.modules.Register(svcMod)
+
+    // Add more modules (HTTP, gRPC, queues) after business logic
+
     logger.Log().Infof("registered %d modules", app.modules.Count())
     return nil
 }
 ```
 
+Service module guidance:
+- Service is always registered.
+- Dependencies (repository, cache, events, etc.) are injected explicitly and may be nil.
+- Service methods should handle missing dependencies gracefully (return clear errors).
+
 ### Step 4: Handle Module Dependencies
 
-If your module depends on another module, inject dependencies via constructor:
+Inject dependencies explicitly via constructors; avoid global lookups. Dependencies may be optional—if so, accept nil and handle gracefully.
 
 ```go
 // Module B depends on Module A
 func NewModuleB(cfg *config.ModuleBConfig, moduleA *modulea.Module) *ModuleB {
     return &ModuleB{
         config: cfg,
-        depA:   moduleA,
+        depA:   moduleA, // can be nil if optional
     }
 }
 ```
@@ -172,22 +192,29 @@ Register in dependency order in `application.go`:
 ```go
 func (app *App) registerModules() error {
     var modA *modulea.Module
-    
+
     // Register Module A first (dependency)
     if app.config.ModuleA != nil && app.config.ModuleA.Enabled {
         modA = modulea.NewModule(app.config.ModuleA)
         app.modules.Register(modA)
     }
-    
-    // Register Module B (depends on A)
-    if modA != nil && app.config.ModuleB != nil && app.config.ModuleB.Enabled {
-        modB := moduleb.NewModule(app.config.ModuleB, modA)
-        app.modules.Register(modB)
+
+    // Register Module B (depends on A); pass nil if A not enabled
+    var depA *modulea.Module
+    if modA != nil {
+        depA = modA
     }
-    
+    modB := moduleb.NewModule(app.config.ModuleB, depA)
+    app.modules.Register(modB)
+
     return nil
 }
 ```
+
+Guidance:
+- Keep constructor injection explicit and typed.
+- If a dependency is optional, document the behavior when nil (e.g., service returns `repository not available` errors when DB is disabled).
+- Avoid service locators or global registries; pass what you need.
 
 ## Best Practices
 
@@ -199,6 +226,119 @@ func (m *Module) Init(ctx context.Context) error {
     if m.initialized {
         return nil // Already initialized
     }
+```
+
+### 2. Optional Dependencies
+- Accept optional dependencies as constructor params; allow nil.
+- Clearly document and handle behavior when a dependency is missing (return explicit errors, not panics).
+- Example: the service module always registers; when repository is nil (database disabled), methods return `repository not available` errors.
+
+### 3. Dependency Order
+- Register infrastructure before business logic; business logic before transports.
+- Stop happens in reverse order automatically (LIFO) via the manager.
+
+### 4. Models & Database Integration
+
+**Model Structure:**
+- Models live in `internal/models/` with go-pg struct tags for database mapping (e.g., `pg:"column_name,pk"`).
+- Use go-pg hooks for lifecycle: `BeforeInsert`, `BeforeUpdate`, `AfterSelect`.
+- Keep validation in `Validate()`; use hooks for DB-specific conversions.
+
+**Status Enums with Database:**
+- Use dual fields: `Status UserStatus pg:"-"` (enum, not stored) and `StatusSQL string pg:"status,use_zero"` (string, stored).
+- Convert in hooks: `BeforeInsert`/`BeforeUpdate` set `StatusSQL = Status.String()`; `AfterSelect` parses `StatusSQL` back to enum.
+- Validation uses enum; database uses string; hooks keep them in sync.
+
+**Example User Model with go-pg:**
+```go
+type User struct {
+    tableName struct{} `pg:"users,discard_unknown_columns"` //nolint:unused
+
+    UUID      uuid.UUID  `pg:"uuid,pk,type:uuid"`
+    Status    UserStatus `pg:"-"`
+    StatusSQL string     `pg:"status,use_zero"`
+    Email     string     `pg:"email,unique,notnull"`
+    Name      string     `pg:"name,notnull"`
+    CreatedAt time.Time  `pg:"created_at,notnull,default:now()"`
+    UpdatedAt time.Time  `pg:"updated_at,notnull,default:now()"`
+}
+
+func (u *User) BeforeInsert(ctx context.Context) (context.Context, error) {
+    if u.UUID == uuid.Nil {
+        id, err := uuid.NewV4()
+        if err != nil {
+            return ctx, fmt.Errorf("generate UUID: %w", err)
+        }
+        u.UUID = id
+    }
+
+    status := u.Status.String()
+    if status == "" {
+        return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+    }
+    u.StatusSQL = status
+
+    return ctx, nil
+}
+
+func (u *User) BeforeUpdate(ctx context.Context) (context.Context, error) {
+    status := u.Status.String()
+    if status == "" {
+        return ctx, fmt.Errorf("invalid status value: %d", u.Status)
+    }
+    u.StatusSQL = status
+    u.UpdatedAt = time.Now()
+
+    return ctx, nil
+}
+
+func (u *User) AfterSelect(_ context.Context) error {
+    status, err := UserStatusFromString(u.StatusSQL)
+    if err != nil {
+        return fmt.Errorf("parse user status: %w", err)
+    }
+    u.Status = status
+    return nil
+}
+```
+
+**Repository Implementation (go-pg):**
+```go
+// internal/repository/postgres.go
+func (r *PostgresRepository) CreateUser(user *models.User) error {
+    if _, err := r.db.Model(user).Returning("*").Insert(); err != nil {
+        return fmt.Errorf("insert user %s into db: %w", user.Email, err)
+    }
+    return nil
+}
+
+func (r *PostgresRepository) UserBy(user *models.User, getter UserGetter) error {
+    query := r.db.Model(user).Column("user.*")
+    if err := getter.Get(query, user); err != nil {
+        return fmt.Errorf("parse getter: %w", err)
+    }
+    if err := query.Select(); err != nil {
+        return fmt.Errorf("get user from database by %s: %w", getter.String(), err)
+    }
+    return nil
+}
+```
+
+**Key Patterns:**
+- Use `Returning("*")` on inserts to populate DB defaults back into the model.
+- Use `Column("table.*")` to select all columns explicitly.
+- Apply getters via `WherePK()` or `Where()` for flexible queries.
+- Keep validation in `Validate()`; hooks handle DB string/enum conversions.
+
+
+### 5. Fast Health Checks
+- Keep `HealthCheck` under 2s; avoid blocking operations.
+
+### 6. No Global Service Locator
+- Do not fetch dependencies from globals; use explicit constructor injection.
+
+### 7. Graceful Shutdown
+- `Stop` should be idempotent, respect context deadlines, and clean up all resources.
     
     // Do initialization work
     
@@ -207,7 +347,7 @@ func (m *Module) Init(ctx context.Context) error {
 }
 ```
 
-### 2. Non-blocking Start
+### 8. Non-blocking Start
 Use goroutines for long-running operations:
 
 ```go
@@ -358,6 +498,25 @@ internal/
     └── postgres/
         └── user.go
 ```
+
+## gRPC Module Patterns
+
+- Module path: `internal/grpc/` (implements `module.Module`).
+- Configuration: `config.GRPCConfig` (`grpc.*` keys) with defaults in `config/init.go`.
+- Registration: optional, enabled when `grpc.enabled=true` in config; wired in `internal/application.go` after service module.
+- Health: standard `grpc.health.v1` service registered in `Server.RegisterHealthService()`.
+- Middleware: logging and recovery interceptors (no Sentry).
+- Handler registration: add your handlers in `module.go -> registerHandlers()` (currently empty; populate after generating protos).
+- Conversions: add proto helpers under `internal/grpc/` (keeps models package free of proto deps).
+- Protocols: pull from the shared repo (`https://github.com/andskur/protocols-template.git`) via subtree; no bundled example is kept locally.
+
+### Adding a New gRPC Service
+1. Pull/update protocols: `make proto-setup` / `make proto-update` (subtree from protocols-template).
+2. Generate code (Buf recommended): `make buf-generate PROTO_PACKAGE=<service>` or use `make proto-generate PROTO_PACKAGE=<service>`.
+3. Add conversion helpers in `internal/grpc/` for your types and enums.
+4. Implement handlers in `internal/grpc/` using `service.IService` (or other deps); return gRPC status errors.
+5. Register handlers in `module.go -> registerHandlers()`.
+6. Keep HealthCheck fast (<2s); server already registers standard health service.
 
 ## Troubleshooting
 

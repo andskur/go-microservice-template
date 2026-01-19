@@ -20,4 +20,14 @@ __debug_bin
 
 microservice-template
 
+# Template synchronization metadata (only in downstream repos)
+.template-version
+
 # TODO: add any required ignore patterns here
+
+# Generated protobuf outputs (kept locally, not committed)
+*.pb.go
+*_grpc.pb.go
+
+# Local docker-compose data
+/data/

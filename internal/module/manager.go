@@ -112,6 +112,16 @@ func (m *Manager) HealthCheckAll(ctx context.Context) map[string]error {
 	return results
 }
 
+// List returns a snapshot of registered modules in order.
+func (m *Manager) List() []Module {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	mods := make([]Module, len(m.modules))
+	copy(mods, m.modules)
+	return mods
+}
+
 // Count returns the number of registered modules.
 func (m *Manager) Count() int {
 	m.mu.RLock()

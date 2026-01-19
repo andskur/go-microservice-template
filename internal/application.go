@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"microservice-template/config"
+	grpcmod "microservice-template/internal/grpc"
 	"microservice-template/internal/module"
+	"microservice-template/internal/repository"
+	"microservice-template/internal/service"
 	"microservice-template/pkg/logger"
 	"microservice-template/pkg/version"
 )
@@ -21,11 +24,9 @@ type App struct {
 	version *version.Version
 	modules *module.Manager
 
-	// TODO: Add module-specific dependencies here as they are added
-	// Example:
-	// db          *sql.DB              // From database module
-	// userRepo    repository.UserRepository
-	// userService service.UserService
+	// Services (exposed to transports like HTTP/gRPC)
+	// Will be nil if dependent modules (e.g., repository) are not enabled.
+	svc service.IService
 }
 
 // NewApplication creates a new App instance.
@@ -56,6 +57,14 @@ func (app *App) Init() error {
 		return fmt.Errorf("init modules: %w", err)
 	}
 
+	// Capture service instance from service module (always registered)
+	for _, mod := range app.modules.List() {
+		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
+			app.svc = svcMod.Service()
+			break
+		}
+	}
+
 	return nil
 }
 
@@ -65,13 +74,45 @@ func (app *App) Init() error {
 // 2. Business logic (repositories, services).
 // 3. Transport (http, grpc).
 func (app *App) registerModules() error {
-	// TODO: Register modules based on config
-	// Example:
-	//
-	// if app.config.Database != nil && app.config.Database.Enabled {
-	//     dbModule := database.NewModule(app.config.Database)
-	//     app.modules.Register(dbModule)
-	// }
+	// Repository module (database-backed) is optional
+	var repoModule *repository.Module
+	if app.config.Database != nil && app.config.Database.Enabled {
+		logger.Log().Info("database enabled, registering repository module")
+
+		repoModule = repository.NewModule(app.config.Database)
+		app.modules.Register(repoModule)
+	} else {
+		logger.Log().Info("database not enabled, repository module not registered")
+	}
+
+	// Service module is always registered; repository may be nil
+	logger.Log().Info("registering service module")
+
+	var repo repository.IRepository
+	if repoModule != nil {
+		repo = repoModule.Repository()
+	}
+
+	svcModule := service.NewModule(repo)
+	app.modules.Register(svcModule)
+
+	// Capture service instance for downstream transports
+	for _, mod := range app.modules.List() {
+		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
+			app.svc = svcMod.Service()
+			break
+		}
+	}
+
+	// gRPC module (transport), optional
+	if app.config.GRPC != nil && app.config.GRPC.Enabled {
+		logger.Log().Info("grpc enabled, registering grpc module")
+
+		grpcModule := grpcmod.NewModule(app.config.GRPC, app.svc)
+		app.modules.Register(grpcModule)
+	} else {
+		logger.Log().Info("grpc not enabled, grpc module not registered")
+	}
 
 	logger.Log().Infof("registered %d modules", app.modules.Count())
 	return nil
@@ -120,6 +161,12 @@ func (app *App) Version() string {
 // Modules returns the module manager (useful for health checks).
 func (app *App) Modules() *module.Manager {
 	return app.modules
+}
+
+// Service returns the service instance.
+// Service is always registered; methods may fail if dependencies are unavailable.
+func (app *App) Service() service.IService {
+	return app.svc
 }
 
 // CreateAddr creates an address string from host and port.

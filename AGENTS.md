@@ -16,6 +16,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
+- Local stack helpers: `make compose-up`, `make compose-down`, `make compose-restart` (Postgres + migrations + Redis).
 
 ## Testing guidance
 - Place tests alongside code (`*_test.go`).
@@ -93,25 +94,85 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Located in `internal/module/` package; Manager handles lifecycle orchestration.
 - Lifecycle: Init → Start → Stop (Stop happens in reverse order for LIFO cleanup).
 - Registration order determines initialization order; manual wiring in `internal/application.go`.
-- Each module has config in `config/scheme.go` with defaults in `config/init.go`.
-- Module dependencies: use constructor injection (type-safe, explicit).
+- Each module may have config in `config/scheme.go` with defaults in `config/init.go`; some modules (e.g., service) are always on and rely on optional dependencies instead of a config flag.
+- Module dependencies: use constructor injection (type-safe, explicit); allow nil for optional deps and handle gracefully.
 - Keep modules focused and single-purpose; make Init() idempotent.
 - Use goroutines in Start() for background work; respect context timeout in Stop().
 - HealthCheck() must be fast (< 2s); log all lifecycle events.
+- Models live in `internal/models` and stay pure (no DB hooks/tags) when DB is not in use; when database is enabled with go-pg, models include go-pg struct tags and hooks for UUID/status/timestamps.
 - See `docs/MODULE_DEVELOPMENT.md` for detailed guide.
 
+### gRPC Module
+- Optional; enabled via `grpc.enabled=true` in config.
+- Config struct: `config.GRPCConfig` (`grpc.*` keys), defaults in `config/init.go`.
+- Module implementation: `internal/grpc/` (Init/Start/Stop/HealthCheck).
+- Handler registration is uncommented in `internal/grpc/module.go` (`registerHandlers`).
+- Health: standard `grpc.health.v1` service registered automatically.
+- Middleware: logging + recovery (no Sentry). Logging at Info for requests, Error for failures.
+- Proto conversions live in `internal/grpc/` (keep models free of proto deps).
+- Protocols are sourced via subtree from `https://github.com/andskur/protocols-template.git`; no bundled example is kept locally.
+
+### Protobuf Workflow
+- Targets in Makefile:
+  - `make proto-install`: install protoc plugins (go, go-grpc).
+  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree (default: andskur/protocols-template).
+  - `make proto-update`: update subtree.
+  - `make proto-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>/*.proto` (protoc).
+  - `make proto-generate-all`: generate Go code from all packages (protoc).
+  - `make buf-install`: install Buf CLI.
+  - `make buf-lint`: lint protos with Buf.
+  - `make buf-breaking`: check breaking changes vs main.
+  - `make buf-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>` (Buf).
+  - `make buf-generate-all`: generate Go code for all packages (Buf).
+  - `make proto-clean`: remove generated `.pb.go` files.
+  - `make test-grpc`: run gRPC package tests (unit + integration).
+- Generated files are ignored (.gitignore). Pull the shared protocols repo via subtree before generating.
+
+### Handler Patterns
+- Implement handlers under `internal/grpc/` for your services.
+- Depend on `service.IService`; validate inputs; return gRPC status errors.
+- Register services in `registerHandlers()`.
+- Add conversion helpers under `internal/grpc/` for model↔proto mappings.
+
+### Repository Layer with go-pg
+- Repository module wraps `*pg.DB` connection and implements `IRepository` interface.
+- Located in `internal/repository/`; registered only when `database.enabled=true`.
+- Models use go-pg struct tags (`pg:"column"`) and hooks (`BeforeInsert`, `BeforeUpdate`, `AfterSelect`) for UUID generation, status conversion, timestamps.
+- Status enums: use dual fields (`Status UserStatus pg:"-"` + `StatusSQL string pg:"status,use_zero"`); hooks convert between enum and string.
+- UUID generation: handled in `BeforeInsert` if UUID is nil; ensures every insert has a UUID.
+- Timestamps: DB defaults for `created_at`; DB trigger updates `updated_at` on row updates; Go hooks also set `updated_at` for defense in depth.
+- Migrations: use `golang-migrate/migrate` via Makefile; migrations in `db/migrations/` dir; create with `make migrate-create NAME=<name>`; run with `make migrate-up`.
+- Connection config: `pg.Options` uses `database.host`, `database.port`, `database.user`, `database.password`, `database.name`, pooling via `max_open_conns` and `max_idle_conns`.
+- Health check: `SELECT 1` via `db.WithContext(ctx).Exec` in module `HealthCheck`.
+- Graceful shutdown: `db.Close()` in module `Stop`; guard nil before closing.
+- Query patterns: `db.Model(model).Column("table.*").Where(...).Select()` for reads; `.Returning("*").Insert()` for creates.
+- Error handling: wrap with context (`fmt.Errorf("action: %w", err)`); check `pg.ErrNoRows` for not-found.
+- UserGetter pattern: enum with `Get(query *orm.Query, model *Model)`; apply `WherePK()` or `Where()`.
+
+### Database Migrations
+- Migrations managed by `golang-migrate/migrate` CLI tool; install via `make migrate-install`.
+- Migration files live in `db/migrations/` with sequential numbering (`000001`, `000002`, ...).
+- Each migration has `.up.sql` (forward) and `.down.sql` (rollback) files.
+- Schema uses PostgreSQL ENUM `user_status` ('active', 'deleted'); DB trigger updates `updated_at` column.
+- Create migrations with `make migrate-create NAME=<descriptive_name>`; always test down migrations.
+- Apply migrations with `make migrate-up`; rollback with `make migrate-down`; check version with `make migrate-version`; recover with `make migrate-force VERSION=<n>`.
+- Use `make migrate-drop` (with confirmation) to drop all tables during local development only.
+- Never modify applied migrations; create new migrations to fix issues.
+- Use `IF EXISTS`/`IF NOT EXISTS` for idempotent migrations safe to re-run.
+- Production: run migrations before app startup or as separate deployment job.
+
 ### Adding a New Module
-1. Define config struct in `config/scheme.go` (e.g., `MyModuleConfig`).
-2. Add defaults in `config/init.go` for all config fields.
-3. Implement `module.Module` interface in `internal/mymodule/module.go`.
-4. Register in `internal/application.go` → `registerModules()` based on config.
-5. Wire dependencies via constructor injection if needed.
-6. Add tests for module lifecycle (Init/Start/Stop/HealthCheck).
+1. Define config struct in `config/scheme.go` when the module is configurable; skip if always-on.
+2. Add defaults in `config/init.go` for all config fields you add.
+3. Implement `module.Module` interface in `internal/<name>/module.go`.
+4. Register in `internal/application.go` → `registerModules()` in dependency order (infrastructure → business logic → transports).
+5. Wire dependencies via constructor injection; pass nil for optional deps and document behavior.
+6. Add tests for module lifecycle (Init/Start/Stop/HealthCheck) and dependency handling.
 7. Document in README.md and MODULE_DEVELOPMENT.md.
 
 ### Module Best Practices
 - Registration order: Infrastructure (DB, cache, queue) → Business logic (repos, services) → Transport (HTTP, gRPC).
-- Constructor injection for dependencies: `NewModuleB(cfg, moduleA)`.
+- Constructor injection for dependencies: `NewModuleB(cfg, moduleA)`; avoid service locators/globals.
 - Non-blocking Start: use `go m.runWorker(ctx)` for long-running operations.
 - Graceful Stop: select on done channel and ctx.Done() with timeout.
 - Error wrapping: use `fmt.Errorf("action: %w", err)` for context.
@@ -150,24 +211,33 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Scripts
 - `scripts/rename.sh`: automated project rename; invoked via `make rename NEW_NAME=...`.
+- `scripts/template-sync.sh`: template sync helper (setup/status/diff/sync) used by Makefile targets.
 - Validates Go module naming; prompts for confirmation; updates go.mod, imports, Makefile vars, entrypoint, CLI `Use`, Dockerfile, docs; optional git remote update; runs `go mod tidy`.
 - New scripts: add to `scripts/`, make executable, document purpose and invocation here and in README.
 
+## Template Synchronization (for downstream repos)
+- One-time setup: `make template-setup` (adds `template` remote, fetches, creates `.template-version`).
+- Check updates: `make template-status`; summary diff: `make template-diff` (optionally with tag).
+- Sync updates: `make template-fetch` then `make template-sync` (optionally with tag ref).
+- After sync: resolve conflicts if any, run `make test`/`make build`, commit separately (e.g., `chore: sync from template vX.Y.Z`).
+- Likely conflict files: README.md, AGENTS.md, config/scheme.go, config/init.go, internal/application.go, Makefile.
+
 ## CI/CD
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
-  - CI: lint/test/build on PRs and `main` via `make lint`, `make test`, `make build`.
-  - Release: reruns lint/test/build, auto-tags incrementally (`v1`, `v2`, …), creates GitHub release on `main`.
-- Branch protection recommended: require CI checks before merge; limit direct pushes to `main`.
+- CI: lint/test/build on PRs and `main` via `make lint`, `make test`, `make build`.
+- Release: reruns lint/test/build, auto-tags incrementally (`v1`, `v2`, …), creates GitHub release on `main`.
+- Branch protection recommended: require CI checks (`lint`, `test`, `build`) to pass before merging to `main` and limit direct pushes.
 
 ## Versioning
 - `Makefile` injects name/tag/commit/branch/remote/build date into `pkg/version` via ldflags.
 - `pkg/version` formats multi-line version output; handles unspecified values.
+- Protocols: source from `https://github.com/andskur/protocols-template.git` via subtree; generate locally with Buf or protoc.
 
 ## Extending the template
 - Add config: update `config/scheme.go`, defaults in `config/init.go`, bind flags in `cmd/root`; test bindings.
-- Add commands: create `cmd/<name>` with cobra.Command, register on root in entrypoint.
+- Add commands: create `cmd/<name>` with `cobra.Command`, register on root in entrypoint.
 - Add runtime logic: implement `App.Init/Serve/Stop` with proper shutdown; use contexts.
-- Add tests: table-driven, reset globals in `t.Cleanup`.
+- Add tests: follow table-driven patterns; reset global state (Viper) in `t.Cleanup`.
 
 ## When unsure
 - Ask for clarification via issues/PR description.
@@ -175,3 +245,4 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep changes minimal and reversible.
 - Run lint/tests before submitting changes.
 - If adding tools or scripts to `scripts/`, document invocation and purpose in this file.
+

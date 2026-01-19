@@ -48,6 +48,65 @@ tidy:
 update:
 	go get -u ./...
 
+# Migration configuration
+MIGRATIONS_DIR := ./db/migrations
+
+# Default database connection values (override via env vars)
+DATABASE_HOST ?= localhost
+DATABASE_PORT ?= 5432
+DATABASE_USER ?= dev
+DATABASE_PASSWORD ?= dev
+DATABASE_NAME ?= microservice_dev
+DATABASE_SSL_MODE ?= disable
+
+# Construct DATABASE_URL from parts
+DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
+
+.PHONY: migrate-install
+migrate-install:
+	@which migrate > /dev/null || (echo "Installing golang-migrate..." && go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest)
+
+.PHONY: migrate-create
+migrate-create:
+ifndef NAME
+	@echo "Error: NAME parameter is required"
+	@echo "Usage: make migrate-create NAME=add_user_roles"
+	@exit 1
+endif
+	@migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
+	@echo "Created migration files in $(MIGRATIONS_DIR)/"
+
+.PHONY: migrate-up
+migrate-up:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
+	@echo "Migrations applied successfully"
+
+.PHONY: migrate-down
+migrate-down:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
+	@echo "Last migration rolled back"
+
+.PHONY: migrate-force
+migrate-force:
+ifndef VERSION
+	@echo "Error: VERSION parameter is required"
+	@echo "Usage: make migrate-force VERSION=2"
+	@exit 1
+endif
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" force $(VERSION)
+	@echo "Migration version forced to $(VERSION)"
+
+.PHONY: migrate-version
+migrate-version:
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" version
+
+.PHONY: migrate-drop
+migrate-drop:
+	@echo "WARNING: This will drop all tables! Press Ctrl+C to cancel, Enter to continue..."
+	@read _
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" drop -f
+	@echo "All migrations dropped"
+
 # The run target runs the application with race detection enabled
 run:
 	GODEBUG=xray_ptrace=1 go run -race $(APP_ENTRY_POINT) serve
@@ -60,9 +119,28 @@ build:
 test:
 	go test ./...
 
+# gRPC integration tests (runs only gRPC package tests, including integration)
+.PHONY: test-grpc
+test-grpc:
+	go test ./internal/grpc -count=1
+
 # The clean target deletes the build output file
 clean:
 	rm $(BUILD_OUT_DIR)/$(APP)
+
+# Docker Compose helpers
+.PHONY: compose-up
+compose-up:
+	docker-compose up -d
+
+.PHONY: compose-down
+compose-down:
+	docker-compose down
+
+.PHONY: compose-restart
+compose-restart:
+	docker-compose down
+	docker-compose up -d
 
 # The test-coverage target runs go test with coverage enabled and generates a coverage report
 test-coverage:
@@ -76,6 +154,138 @@ lint:
 # The lint-install target installs golangci-lint if not already installed
 lint-install:
 	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+
+# Protobuf configuration
+PROTO_DIR := ./protocols
+PROTO_REPO ?= https://github.com/andskur/protocols-template.git
+PROTO_BRANCH ?= main
+
+.PHONY: proto-install
+proto-install:
+	@which protoc > /dev/null || (echo "Error: protoc not installed. Visit https://grpc.io/docs/protoc-installation/" && exit 1)
+	@echo "Installing protoc-gen-go and protoc-gen-go-grpc..."
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@echo "Proto tools installed successfully"
+
+.PHONY: buf-install
+buf-install:
+	@which buf > /dev/null || (echo "Installing Buf..." && go install github.com/bufbuild/buf/cmd/buf@latest)
+	@echo "Buf installed successfully"
+
+.PHONY: proto-setup
+proto-setup:
+ifndef PROTO_REPO
+	@echo "Error: PROTO_REPO parameter is required"
+	@echo "Usage: make proto-setup PROTO_REPO=git@github.com:andskur/protocols-template.git"
+	@echo "   or: make proto-setup PROTO_REPO=https://github.com/andskur/protocols-template.git"
+	@exit 1
+endif
+	@echo "Adding protobuf subtree from $(PROTO_REPO)..."
+	@git subtree add --prefix=$(PROTO_DIR) $(PROTO_REPO) $(PROTO_BRANCH) --squash
+	@echo "Subtree added successfully"
+
+.PHONY: proto-update
+proto-update:
+	@echo "Updating protobuf subtree from $(PROTO_REPO)..."
+	@git subtree pull --prefix=$(PROTO_DIR) $(PROTO_REPO) $(PROTO_BRANCH) --squash
+	@echo "Subtree updated successfully"
+
+.PHONY: proto-generate
+proto-generate:
+ifndef PROTO_PACKAGE
+	@echo "Error: PROTO_PACKAGE parameter is required"
+	@echo "Usage: make proto-generate PROTO_PACKAGE=user"
+	@echo "This will generate Go code from $(PROTO_DIR)/user/*.proto"
+	@exit 1
+endif
+	@test -d $(PROTO_DIR)/$(PROTO_PACKAGE) || (echo "Error: $(PROTO_DIR)/$(PROTO_PACKAGE) directory not found" && exit 1)
+	@echo "Generating Go code from $(PROTO_DIR)/$(PROTO_PACKAGE)/*.proto..."
+	@cd $(PROTO_DIR)/$(PROTO_PACKAGE) && \
+		protoc --go_out=paths=source_relative:. \
+		       --go_opt=paths=source_relative \
+		       --go-grpc_out=paths=source_relative:. \
+		       --go-grpc_opt=paths=source_relative \
+		       *.proto
+	@echo "Proto generation complete for $(PROTO_PACKAGE)"
+
+.PHONY: proto-generate-all
+proto-generate-all:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@echo "Generating Go code from all proto packages under $(PROTO_DIR)..."
+	@cd $(PROTO_DIR) && find . -type f -name '*.proto' -print0 | xargs -0 -n1 dirname | sort -u | while read -r dir; do \
+		cd $(PROTO_DIR)/$$dir && \
+		protoc --go_out=paths=source_relative:. \
+		       --go_opt=paths=source_relative \
+		       --go-grpc_out=paths=source_relative:. \
+		       --go-grpc_opt=paths=source_relative \
+		       *.proto; \
+	done
+	@echo "Proto generation complete for all packages"
+
+.PHONY: buf-lint
+buf-lint:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf lint
+
+.PHONY: buf-breaking
+buf-breaking:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf breaking --against '.git#branch=main'
+
+.PHONY: buf-generate
+buf-generate:
+ifndef PROTO_PACKAGE
+	@echo "Error: PROTO_PACKAGE parameter is required"
+	@echo "Usage: make buf-generate PROTO_PACKAGE=user"
+	@exit 1
+endif
+	@test -d $(PROTO_DIR)/$(PROTO_PACKAGE) || (echo "Error: $(PROTO_DIR)/$(PROTO_PACKAGE) directory not found" && exit 1)
+	@cd $(PROTO_DIR)/$(PROTO_PACKAGE) && buf generate
+	@echo "Buf generation complete for $(PROTO_PACKAGE)"
+
+.PHONY: buf-generate-all
+buf-generate-all:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf generate
+	@echo "Buf generation complete for all packages"
+
+.PHONY: buf-validate
+buf-validate:
+	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
+	@cd $(PROTO_DIR) && buf lint && buf generate --template buf.gen.yaml --path . >/dev/null
+
+.PHONY: proto-clean
+proto-clean:
+	@echo "Cleaning generated proto files..."
+	@find $(PROTO_DIR) -name "*.pb.go" -type f -delete
+	@find $(PROTO_DIR) -name "*_grpc.pb.go" -type f -delete
+	@echo "Generated proto files removed"
+
+# Template synchronization
+TEMPLATE_REMOTE_NAME := template
+TEMPLATE_REMOTE_URL ?= https://github.com/andskur/go-microservice-template.git
+TEMPLATE_BRANCH ?= main
+
+.PHONY: template-setup
+template-setup:
+	@bash scripts/template-sync.sh setup
+
+.PHONY: template-status
+template-status:
+	@bash scripts/template-sync.sh status
+
+.PHONY: template-fetch
+template-fetch:
+	@bash scripts/template-sync.sh fetch
+
+.PHONY: template-diff
+template-diff:
+	@bash scripts/template-sync.sh diff
+
+.PHONY: template-sync
+template-sync:
+	@bash scripts/template-sync.sh sync
 
 .PHONY: rename
 rename:
