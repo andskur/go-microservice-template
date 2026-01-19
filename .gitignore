@@ -29,5 +29,9 @@ microservice-template
 *.pb.go
 *_grpc.pb.go
 
+# Generated swagger/HTTP API code (kept locally, not committed)
+internal/http/server/
+internal/http/models/
+
 # Local docker-compose data
 /data/

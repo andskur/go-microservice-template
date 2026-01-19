@@ -14,8 +14,10 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Lint: `make lint` (golangci-lint).
 - Test: `make test` or single test `go test ./... -run TestName -count=1`.
 - gRPC tests: `make test-grpc` (runs gRPC package including integration).
+- HTTP tests: `make test-http` (runs HTTP package tests).
 - Coverage: `make test-coverage` (writes `coverage.out`).
 - Tidy deps: `make tidy`; update deps: `make update`.
+- HTTP quickstart: see [docs/HTTP_SWAGGER_GUIDE.md](./docs/HTTP_SWAGGER_GUIDE.md); enable with `HTTP_ENABLED=true`, generate API with `make generate-api`, test with curl.
 - gRPC quickstart: see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md); enable with `GRPC_ENABLED=true`, test with grpcurl; use shared protocols from `https://github.com/andskur/protocols-template.git`.
 
 ### Renaming the project
@@ -27,23 +29,27 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 ## Features
 - Simple, small footprint using standard libs plus Cobra/Viper/logrus.
 - **Module system** for optional components (repository, service, HTTP, gRPC, queue, etc.).
+- **HTTP REST API** with Swagger/OpenAPI spec-first approach using go-swagger.
+- **gRPC API** with protocol buffer code generation and health checks.
 - Version metadata injected via ldflags (`pkg/version`).
 - Structured logging via `pkg/logger` singleton.
-- Makefile targets for build/run/lint/test/tidy/update.
+- Makefile targets for build/run/lint/test/tidy/update/generate-api.
 - CI pipeline: lint/test/build on PRs and `main`; release pipeline auto-tags on `main` and publishes a GitHub release (source-only).
-- Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers.
+- Tests included for CLI wiring, config defaults, versioning, logger singleton, helpers, HTTP and gRPC modules.
 - Rename-friendly: single placeholder name with automated `make rename` target.
 
 ## Project Structure
 ```
 go-microservice-template/
+├── api/                        # Swagger/OpenAPI specifications
 ├── cmd/                        # CLI entry + commands
 ├── config/                     # Viper defaults and scheme
 ├── db/migrations/              # Database migration files (golang-migrate)
-├── docs/                       # Additional guides (incl. GRPC_GUIDE)
+├── docs/                       # Additional guides (HTTP_SWAGGER_GUIDE, GRPC_GUIDE)
 ├── internal/
 │   ├── application.go          # App wiring + module registration
 │   ├── grpc/                   # gRPC module (server, interceptors)
+│   ├── http/                   # HTTP module (handlers, middleware, auth)
 │   ├── module/                 # Module interface/manager
 │   ├── repository/             # Repository module (optional)
 │   ├── service/                # Business logic module
@@ -54,7 +60,7 @@ go-microservice-template/
 ├── .github/workflows/          # CI/CD pipelines
 ├── Dockerfile                  # Multi-stage container build
 ├── docker-compose.yml          # Local stack (Postgres/Redis/app)
-├── Makefile                    # Build/run/lint/test/proto targets
+├── Makefile                    # Build/run/lint/test/proto/swagger targets
 ├── README.md, AGENTS.md        # Docs and guidelines
 └── go.mod, go.sum              # Dependencies
 ```
@@ -72,7 +78,7 @@ The template includes configuration placeholders for common modules:
 |--------|---------|-----------|--------|
 | Repository | Database-backed persistence (wraps DB connection) | `database` | ✅ Implemented (enabled when `database.enabled` is true) |
 | Service | Business logic orchestrator (optional deps) | n/a | ✅ Implemented (always registered; repository optional) |
-| HTTP | HTTP REST API server | `http` | 🔜 Coming soon |
+| HTTP | HTTP REST API server with Swagger/OpenAPI | `http` | ✅ Implemented (enabled when `http.enabled` is true) |
 | gRPC | gRPC API server | `grpc` | ✅ Implemented (enabled when `grpc.enabled` is true) |
 
 ### Enabling Modules
@@ -155,6 +161,63 @@ make compose-restart
 
 For production deployments, run migrations before starting the application or use a separate migration job in your deployment pipeline.
 
+### HTTP REST API Setup
+
+The HTTP module provides a REST API with Swagger/OpenAPI specification support using go-swagger.
+
+**Install go-swagger (one-time):**
+```bash
+make swagger-install
+```
+
+**Generate API server code from spec:**
+```bash
+# Validate the swagger spec
+make swagger-validate
+
+# Generate server code from api/swagger.yaml
+make generate-api
+```
+
+**Enable HTTP module:**
+```bash
+export HTTP_ENABLED=true
+export HTTP_PORT=8080
+export HTTP_MOCK_AUTH=true  # For local development (bypasses JWT validation)
+
+# Run the service
+make run
+```
+
+**Test the HTTP endpoints:**
+```bash
+# Health check (public endpoint)
+curl http://localhost:8080/health
+
+# Get user by email (requires auth in production, mock mode for dev)
+curl -H "Authorization: Bearer test-token" \
+  "http://localhost:8080/users?email=test@example.com"
+```
+
+**Available HTTP targets:**
+```bash
+make swagger-install      # Install go-swagger CLI
+make swagger-validate     # Validate swagger spec
+make generate-api         # Generate server code from api/swagger.yaml
+make swagger-clean        # Remove generated code
+make test-http           # Run HTTP module tests
+```
+
+**Configuration options:**
+- `http.enabled` - Enable/disable HTTP server (default: false)
+- `http.host` - Server host (default: localhost)
+- `http.port` - Server port (default: 8080)
+- `http.mock_auth` - Use mock authentication for development (default: false)
+- `http.cors.enabled` - Enable CORS (default: true)
+- `http.rate_limit.enabled` - Enable rate limiting (default: true)
+- `http.rate_limit.requests_per_second` - Rate limit (default: 100)
+
+For detailed HTTP development guide including adding new endpoints, authentication, and middleware, see [docs/HTTP_SWAGGER_GUIDE.md](./docs/HTTP_SWAGGER_GUIDE.md).
 
 ### Adding Custom Modules
 

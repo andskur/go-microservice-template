@@ -128,11 +128,124 @@ No other AGENTS.md or Cursor/Copilot rules found.
   - `make test-grpc`: run gRPC package tests (unit + integration).
 - Generated files are ignored (.gitignore). Pull the shared protocols repo via subtree before generating.
 
-### Handler Patterns
+### gRPC Handler Patterns
 - Implement handlers under `internal/grpc/` for your services.
 - Depend on `service.IService`; validate inputs; return gRPC status errors.
 - Register services in `registerHandlers()`.
 - Add conversion helpers under `internal/grpc/` for model↔proto mappings.
+
+### HTTP Module
+- Optional; enabled via `http.enabled=true` in config.
+- Config struct: `config.HTTPConfig` (`http.*` keys), defaults in `config/init.go`.
+- Module implementation: `internal/http/` (Init/Start/Stop/HealthCheck).
+- Uses go-swagger for spec-first API development (Swagger 2.0 format).
+- API spec: `api/swagger.yaml`; generated server code in `internal/http/server/` (gitignored).
+- Middleware chain (justinas/alice): Recovery → Logger → CORS → RateLimit → Handler.
+- Auth: JWT validation in `internal/http/auth/auth.go`; mock mode for local dev with `http.mock_auth=true`.
+- Handler pattern: struct with dependencies → `Handle(w http.ResponseWriter, r *http.Request)` method.
+- Error mapping: service errors map to HTTP status (ErrNotFound → 404, ErrInvalidInput → 400, ErrRepositoryUnavailable → 503).
+- Model conversions: `internal/http/formatter/` package converts domain models ↔ API models (generated from swagger).
+- Health: `GET /health` returns 200 with status; checks all module health.
+
+### Swagger Workflow
+- Targets in Makefile:
+  - `make swagger-install`: install go-swagger CLI.
+  - `make swagger-validate`: validate `api/swagger.yaml` spec.
+  - `make generate-api`: generate server code from spec (creates `internal/http/server/` and `internal/http/models/`).
+  - `make swagger-clean`: remove generated code.
+  - `make test-http`: run HTTP package tests (unit + integration).
+- Generated files are ignored (.gitignore). Edit `api/swagger.yaml` then regenerate with `make generate-api`.
+- Use Swagger 2.0 format (not OpenAPI 3.0); go-swagger doesn't support OpenAPI 3.0 yet.
+
+### HTTP Handler Patterns
+- Implement handlers in `internal/http/handlers/` as structs with dependencies.
+- Handler struct pattern:
+  ```go
+  type GetUserHandler struct {
+      service service.IService
+      log     *logrus.Logger
+  }
+  
+  func NewGetUserHandler(svc service.IService, log *logrus.Logger) *GetUserHandler {
+      return &GetUserHandler{service: svc, log: log}
+  }
+  
+  func (h *GetUserHandler) Handle(w http.ResponseWriter, r *http.Request) {
+      // Extract params, validate, call service, convert response
+  }
+  ```
+- Register handlers in `internal/http/module.go` → `setupRoutes()`.
+- Use `DefaultError(w, code, msg)` helper for error responses.
+- Convert models with formatters: `formatter.UserToAPI(domainUser)` → API model.
+- Validate inputs; return 400 for invalid input, 404 for not found, 503 for service unavailable.
+- Log errors with context; use structured logging (logrus).
+
+### HTTP Error Handling
+- Service layer returns sentinel errors (`service.ErrNotFound`, `service.ErrInvalidInput`, `service.ErrRepositoryUnavailable`).
+- HTTP handlers map errors to status codes:
+  - `service.ErrNotFound` → 404 Not Found
+  - `service.ErrInvalidInput` or `models.ValidationError` → 400 Bad Request
+  - `service.ErrRepositoryUnavailable` → 503 Service Unavailable
+  - Other errors → 500 Internal Server Error
+- Use `errors.Is()` to check error types; log internal errors, return generic messages to client.
+- Example handler error mapping:
+  ```go
+  user, err := h.service.GetUserByEmail(ctx, email)
+  if err != nil {
+      if errors.Is(err, service.ErrNotFound) {
+          DefaultError(w, http.StatusNotFound, "User not found")
+          return
+      }
+      if errors.Is(err, service.ErrRepositoryUnavailable) {
+          DefaultError(w, http.StatusServiceUnavailable, "Service temporarily unavailable")
+          return
+      }
+      h.log.Errorf("get user by email: %v", err)
+      DefaultError(w, http.StatusInternalServerError, "Internal server error")
+      return
+  }
+  ```
+
+### HTTP Authentication
+- JWT validation in `internal/http/auth/auth.go` via `Authenticate()` middleware.
+- Production: validates JWT signature, checks expiration, extracts claims (user ID, email, admin flag).
+- Development: use `http.mock_auth=true` to bypass validation (accepts any Bearer token).
+- Gatekeeper integration: detailed TODO in `auth.go` for future external auth service integration.
+- Protected routes: apply `Authenticate()` middleware in handler chain.
+- Claims stored in request context; retrieve with `auth.GetUserID(r)`, `auth.GetEmail(r)`, `auth.IsAdmin(r)`.
+
+### HTTP Middleware
+- Recovery: catch panics, log stack trace, return 500.
+- Logger: log request method, path, duration, status code; Info for 2xx/3xx, Error for 4xx/5xx.
+- CORS: configurable origins/methods/headers via `http.cors.*` config; preflight support.
+- RateLimit: token bucket per IP with `http.rate_limit.requests_per_second` and burst size.
+- Chain with justinas/alice: `alice.New(Recovery(), Logger(), CORS(), RateLimit()).Then(handler)`.
+- Add new middleware in `internal/http/middlewares/`; register in module's `setupRoutes()`.
+
+### HTTP Testing
+- Test handlers with mock service implementing `service.IService`.
+- Use `httptest.NewRecorder()` and `httptest.NewRequest()`.
+- Table-driven tests for branches (success, not found, invalid input, service error).
+- Test middleware with chained handlers; verify headers, status codes, response bodies.
+- Test module lifecycle (Init/Start/Stop/HealthCheck) with mock config.
+- Run with `make test-http` or `go test ./internal/http/...`.
+- Example handler test:
+  ```go
+  func TestGetUserHandler_Success(t *testing.T) {
+      mockSvc := &MockService{
+          GetUserByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
+              return &models.User{ID: uuid.Must(uuid.NewV4()), Email: email}, nil
+          },
+      }
+      handler := NewGetUserHandler(mockSvc, logger.Log())
+      req := httptest.NewRequest(http.MethodGet, "/users?email=test@example.com", nil)
+      w := httptest.NewRecorder()
+      handler.Handle(w, req)
+      if w.Code != http.StatusOK {
+          t.Errorf("expected 200, got %d", w.Code)
+      }
+  }
+  ```
 
 ### Repository Layer with go-pg
 - Repository module wraps `*pg.DB` connection and implements `IRepository` interface.

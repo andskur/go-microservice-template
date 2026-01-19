@@ -53,7 +53,7 @@ func (s *Service) CreateUser(_ context.Context, user *models.User) error {
 	logger.Log().Info("creating user")
 
 	if user == nil {
-		return fmt.Errorf("user is required")
+		return fmt.Errorf("%w: user is required", ErrInvalidInput)
 	}
 
 	// TODO: Validate user data (e.g., user.Validate())
@@ -61,7 +61,7 @@ func (s *Service) CreateUser(_ context.Context, user *models.User) error {
 	// TODO: Apply business rules
 
 	if s.repository == nil {
-		return fmt.Errorf("repository not available: database module not enabled")
+		return ErrRepositoryUnavailable
 	}
 
 	if err := s.repository.CreateUser(user); err != nil {
@@ -79,15 +79,23 @@ func (s *Service) CreateUser(_ context.Context, user *models.User) error {
 func (s *Service) GetUserByEmail(_ context.Context, email string) (*models.User, error) {
 	logger.Log().Infof("getting user by email: %s", email)
 
+	if email == "" {
+		return nil, fmt.Errorf("%w: email is required", ErrInvalidInput)
+	}
+
 	// TODO: Check cache first (when cache module is added)
+
+	if s.repository == nil {
+		return nil, ErrRepositoryUnavailable
+	}
 
 	user := &models.User{Email: email}
 
-	if s.repository == nil {
-		return nil, fmt.Errorf("repository not available: database module not enabled")
-	}
-
 	if err := s.repository.UserBy(user, repository.Email); err != nil {
+		// Check if it's a not found error from go-pg
+		if err.Error() == "pg: no rows in result set" {
+			return nil, fmt.Errorf("%w: user with email %s", ErrNotFound, email)
+		}
 		return nil, fmt.Errorf("get user by email: %w", err)
 	}
 

@@ -11,6 +11,7 @@ import (
 
 	"microservice-template/config"
 	grpcmod "microservice-template/internal/grpc"
+	httpmod "microservice-template/internal/http"
 	"microservice-template/internal/module"
 	"microservice-template/internal/repository"
 	"microservice-template/internal/service"
@@ -102,6 +103,16 @@ func (app *App) registerModules() error {
 			app.svc = svcMod.Service()
 			break
 		}
+	}
+
+	// HTTP module (transport), optional
+	if app.config.HTTP != nil && app.config.HTTP.Enabled {
+		logger.Log().Info("http enabled, registering http module")
+
+		httpModule := httpmod.NewModule(app.config.HTTP, app.svc)
+		app.modules.Register(httpModule)
+	} else {
+		logger.Log().Info("http not enabled, http module not registered")
 	}
 
 	// gRPC module (transport), optional

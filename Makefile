@@ -262,6 +262,46 @@ proto-clean:
 	@find $(PROTO_DIR) -name "*_grpc.pb.go" -type f -delete
 	@echo "Generated proto files removed"
 
+# Swagger/HTTP API targets
+.PHONY: swagger-install
+swagger-install:
+	@which swagger > /dev/null || (echo "Installing go-swagger..." && go install github.com/go-swagger/go-swagger/cmd/swagger@latest)
+	@echo "go-swagger installed successfully"
+
+.PHONY: swagger-validate
+swagger-validate:
+	@echo "Validating swagger specification..."
+	@swagger validate api/swagger.yaml
+	@echo "Swagger spec is valid"
+
+.PHONY: generate-api
+generate-api:
+	@echo "Generating API server from swagger spec..."
+	@swagger generate server \
+		-A $(APP)-api \
+		-P models.User \
+		--server-package server \
+		-f ./api/swagger.yaml \
+		--exclude-main \
+		--keep-spec-order \
+		--flag-strategy pflag \
+		--target ./internal/http \
+		--spec ./api/swagger.yaml
+	@echo "Tidying go modules..."
+	@go mod tidy
+	@echo "API generation complete"
+
+.PHONY: swagger-clean
+swagger-clean:
+	@echo "Cleaning generated swagger code..."
+	@rm -rf internal/http/server
+	@echo "Generated swagger code removed"
+
+.PHONY: test-http
+test-http:
+	@echo "Running HTTP module tests..."
+	@go test -v -race -count=1 ./internal/http/...
+
 # Template synchronization
 TEMPLATE_REMOTE_NAME := template
 TEMPLATE_REMOTE_URL ?= https://github.com/andskur/go-microservice-template.git
