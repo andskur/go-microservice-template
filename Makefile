@@ -120,6 +120,9 @@ build:
 test:
 	go test ./...
 
+.PHONY: test-with-gen
+test-with-gen: generate-all test
+
 # gRPC integration tests (runs only gRPC package tests, including integration)
 .PHONY: test-grpc
 test-grpc:
@@ -151,6 +154,9 @@ test-coverage:
 # The lint target runs golangci-lint to check for common style and code quality issues
 lint:
 	golangci-lint run ./...
+
+.PHONY: lint-with-gen
+lint-with-gen: generate-all lint
 
 # The lint-install target installs golangci-lint if not already installed
 lint-install:
@@ -291,6 +297,9 @@ generate-api:
 	@echo "Tidying go modules..."
 	@go mod tidy
 	@echo "API generation complete"
+
+.PHONY: generate-all
+generate-all: proto-generate-all generate-api
 
 .PHONY: swagger-clean
 swagger-clean:

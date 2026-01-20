@@ -40,6 +40,8 @@ fi
 
 CURRENT_BASE=${CURRENT_MODULE##*/}
 NEW_BASE=${NEW_MODULE##*/}
+NEW_PASCAL=$(echo "${NEW_BASE}" | perl -pe 's/(^|-)([a-z0-9])/uc($2)/ge; s/[^A-Za-z0-9]//g')
+API_STRUCT_NAME="${NEW_PASCAL}APIAPI"
 
 cat <<EOF
 Renaming project
@@ -87,6 +89,15 @@ update_cli_use() {
   if [[ -f "${file}" ]]; then
     perl -pi -e "s|Use: \"\Q${CURRENT_BASE}\E\"|Use: \"${NEW_BASE}\"|" "${file}"
   fi
+}
+
+update_http_api_struct() {
+  local file="internal/http/module.go"
+  [[ -f "${file}" ]] || return 0
+
+  # Update swagger API struct/type names to match new APP (go-swagger generates <PascalBase>APIAPI)
+  perl -pi -e "s|operations\\.New[[:alnum:]]+APIAPI|operations.New${API_STRUCT_NAME}|g" "${file}"
+  perl -pi -e "s|\*operations\.[[:alnum:]]+APIAPI|*operations.${API_STRUCT_NAME}|g" "${file}"
 }
 
 update_dockerfile() {
@@ -145,6 +156,7 @@ rename_entrypoint
 update_cli_use
 update_dockerfile
 update_docs
+update_http_api_struct
 update_git_remote
 run_go_mod_tidy
 
