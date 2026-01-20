@@ -40,7 +40,7 @@ func TestNewModule(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	if module == nil {
 		t.Fatal("NewModule returned nil")
@@ -61,7 +61,7 @@ func TestModule_Name(t *testing.T) {
 		Timeout: "30s",
 	}
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	name := module.Name()
 	if name != "http" {
@@ -85,7 +85,7 @@ func TestModule_Init(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 	err := module.Init(ctx)
@@ -128,7 +128,7 @@ func TestModule_Init_InvalidTimeout(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 	err := module.Init(ctx)
@@ -151,7 +151,7 @@ func TestModule_Init_InvalidAddress(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 	err := module.Init(ctx)
@@ -179,7 +179,7 @@ func TestModule_Lifecycle(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 
@@ -221,7 +221,7 @@ func TestModule_Stop_WithoutStart(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 
@@ -239,7 +239,7 @@ func TestModule_HealthCheck(t *testing.T) {
 	}
 
 	svc := &mockService{}
-	module := NewModule(cfg, svc)
+	module := NewModule(cfg, svc, nil)
 
 	ctx := context.Background()
 

@@ -12,6 +12,21 @@ type GRPCConfig struct {
 	Enabled          bool   `mapstructure:"enabled"`
 }
 
+// GRPCClientConfig holds gRPC client settings for connecting to external services.
+type GRPCClientConfig struct {
+	KeepAlive *KeepAliveConfig `mapstructure:"keep_alive"` // Keep-alive settings
+	Address   string           `mapstructure:"address"`    // External service address (e.g., "user-service:9090")
+	Timeout   string           `mapstructure:"timeout"`    // Request timeout (e.g., "30s")
+	Enabled   bool             `mapstructure:"enabled"`    // Enable gRPC client module
+}
+
+// KeepAliveConfig holds gRPC keep-alive settings.
+type KeepAliveConfig struct {
+	Time                string `mapstructure:"time"`                  // Send pings interval (e.g., "10s")
+	Timeout             string `mapstructure:"timeout"`               // Ping ack timeout (e.g., "1s")
+	PermitWithoutStream bool   `mapstructure:"permit_without_stream"` // Send pings even without active streams
+}
+
 // HTTPConfig holds HTTP server settings.
 type HTTPConfig struct {
 	// Pointers first to reduce padding.
@@ -57,6 +72,9 @@ type Scheme struct {
 
 	// GRPC configuration for gRPC module (optional; nil if disabled).
 	GRPC *GRPCConfig `mapstructure:"grpc"`
+
+	// GRPCClient configuration for gRPC client module (optional; nil if disabled).
+	GRPCClient *GRPCClientConfig `mapstructure:"grpc_client"`
 
 	// HTTP configuration for HTTP module (optional; nil if disabled).
 	HTTP *HTTPConfig `mapstructure:"http"`

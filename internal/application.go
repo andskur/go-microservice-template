@@ -11,6 +11,7 @@ import (
 
 	"microservice-template/config"
 	grpcmod "microservice-template/internal/grpc"
+	grpcclientmod "microservice-template/internal/grpcclient"
 	httpmod "microservice-template/internal/http"
 	"microservice-template/internal/module"
 	"microservice-template/internal/repository"
@@ -75,7 +76,7 @@ func (app *App) Init() error {
 // 2. Business logic (repositories, services).
 // 3. Transport (http, grpc).
 func (app *App) registerModules() error {
-	// Repository module (database-backed) is optional
+	// 1. Infrastructure: Repository (database-backed) is optional
 	var repoModule *repository.Module
 	if app.config.Database != nil && app.config.Database.Enabled {
 		logger.Log().Info("database enabled, registering repository module")
@@ -86,7 +87,18 @@ func (app *App) registerModules() error {
 		logger.Log().Info("database not enabled, repository module not registered")
 	}
 
-	// Service module is always registered; repository may be nil
+	// 2. Infrastructure: gRPC Client for external services (optional)
+	var grpcClientModule *grpcclientmod.Module
+	if app.config.GRPCClient != nil && app.config.GRPCClient.Enabled {
+		logger.Log().Info("grpc_client enabled, registering grpc client module")
+
+		grpcClientModule = grpcclientmod.NewModule(app.config.GRPCClient)
+		app.modules.Register(grpcClientModule)
+	} else {
+		logger.Log().Info("grpc_client not enabled, grpc client module not registered")
+	}
+
+	// 3. Business logic: Service module is always registered; repository may be nil
 	logger.Log().Info("registering service module")
 
 	var repo repository.IRepository
@@ -94,6 +106,8 @@ func (app *App) registerModules() error {
 		repo = repoModule.Repository()
 	}
 
+	// Service module does NOT depend on grpcClient
+	// Service handles local business logic only
 	svcModule := service.NewModule(repo)
 	app.modules.Register(svcModule)
 
@@ -105,17 +119,18 @@ func (app *App) registerModules() error {
 		}
 	}
 
-	// HTTP module (transport), optional
+	// 4. Transport: HTTP module (optional) - receives both service AND grpcClient
 	if app.config.HTTP != nil && app.config.HTTP.Enabled {
 		logger.Log().Info("http enabled, registering http module")
 
-		httpModule := httpmod.NewModule(app.config.HTTP, app.svc)
+		// Pass grpcClient to HTTP module (can be nil)
+		httpModule := httpmod.NewModule(app.config.HTTP, app.svc, grpcClientModule)
 		app.modules.Register(httpModule)
 	} else {
 		logger.Log().Info("http not enabled, http module not registered")
 	}
 
-	// gRPC module (transport), optional
+	// 5. Transport: gRPC server module (optional)
 	if app.config.GRPC != nil && app.config.GRPC.Enabled {
 		logger.Log().Info("grpc enabled, registering grpc module")
 

@@ -37,6 +37,14 @@ func setDefaults() {
 	viper.SetDefault("grpc.max_recv_msg_size", 60*1024*1024)
 	viper.SetDefault("grpc.num_stream_workers", 0)
 
+	// gRPC Client module defaults
+	viper.SetDefault("grpc_client.enabled", false)
+	viper.SetDefault("grpc_client.address", "localhost:9090")
+	viper.SetDefault("grpc_client.timeout", "30s")
+	viper.SetDefault("grpc_client.keep_alive.time", "10s")
+	viper.SetDefault("grpc_client.keep_alive.timeout", "1s")
+	viper.SetDefault("grpc_client.keep_alive.permit_without_stream", true)
+
 	// HTTP module defaults
 	viper.SetDefault("http.enabled", false)
 	viper.SetDefault("http.address", "0.0.0.0:8080")
