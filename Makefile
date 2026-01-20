@@ -215,7 +215,7 @@ proto-generate-all:
 	@test -d $(PROTO_DIR) || (echo "Error: $(PROTO_DIR) directory not found" && exit 1)
 	@echo "Generating Go code from all proto packages under $(PROTO_DIR)..."
 	@cd $(PROTO_DIR) && find . -type f -name '*.proto' -print0 | xargs -0 -n1 dirname | sort -u | while read -r dir; do \
-		cd $(PROTO_DIR)/$$dir && \
+		cd "$$dir" && \
 		protoc --go_out=paths=source_relative:. \
 		       --go_opt=paths=source_relative \
 		       --go-grpc_out=paths=source_relative:. \
