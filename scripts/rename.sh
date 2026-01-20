@@ -42,7 +42,7 @@ CURRENT_BASE=${CURRENT_MODULE##*/}
 NEW_BASE=${NEW_MODULE##*/}
 
 cat <<EOF
-About to rename project
+Renaming project
   Current module: ${CURRENT_MODULE}
   New module:     ${NEW_MODULE}
   Current binary: ${CURRENT_BASE}
@@ -56,15 +56,8 @@ About to rename project
     - Cobra root command name
     - Dockerfile binary name
     - README.md and AGENTS.md references
-    - Optional: git remote URL
-Proceed? (y/N):
+    - Optional: git remote URL (set NEW_REMOTE to change)
 EOF
-
-read -r CONFIRM
-if [[ ! "${CONFIRM}" =~ ^[Yy](es)?$ ]]; then
-  echo "Aborted"
-  exit 1
-fi
 
 update_go_mod() {
   perl -pi -e "s|^module\\s+.+$|module ${NEW_MODULE}|" go.mod
@@ -119,27 +112,23 @@ update_git_remote() {
     return
   fi
 
-  echo -n "Update git remote URL? (y/N): "
-  read -r UPDATE_REMOTE
-  if [[ ! "${UPDATE_REMOTE}" =~ ^[Yy](es)?$ ]]; then
+  NEW_REMOTE=${NEW_REMOTE:-}
+
+  if [[ -z "${NEW_REMOTE}" ]]; then
     return
   fi
 
-  echo -n "Enter new git remote URL (leave blank to remove origin): "
-  read -r NEW_REMOTE
-  if [[ -z "${NEW_REMOTE}" ]]; then
-    if git remote | grep -q '^origin$'; then
+  if git remote | grep -q '^origin$'; then
+    if [[ "${NEW_REMOTE}" == "-" ]]; then
       git remote remove origin
       echo "Removed origin remote"
-    fi
-  else
-    if git remote | grep -q '^origin$'; then
+    else
       git remote set-url origin "${NEW_REMOTE}"
       echo "Updated origin to ${NEW_REMOTE}"
-    else
-      git remote add origin "${NEW_REMOTE}"
-      echo "Added origin -> ${NEW_REMOTE}"
     fi
+  else
+    git remote add origin "${NEW_REMOTE}"
+    echo "Added origin -> ${NEW_REMOTE}"
   fi
 }
 
