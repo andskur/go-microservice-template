@@ -37,13 +37,27 @@ func setDefaults() {
 	viper.SetDefault("grpc.max_recv_msg_size", 60*1024*1024)
 	viper.SetDefault("grpc.num_stream_workers", 0)
 
-	// TODO: Add default values for additional module configurations as you implement them
-	//
-	// Example: HTTP module defaults
-	// viper.SetDefault("http.enabled", false)
-	// viper.SetDefault("http.host", "0.0.0.0")
-	// viper.SetDefault("http.port", 8080)
-	// viper.SetDefault("http.read_timeout", 30)
-	// viper.SetDefault("http.write_timeout", 30)
-	// viper.SetDefault("http.shutdown_timeout", 10)
+	// HTTP module defaults
+	viper.SetDefault("http.enabled", false)
+	viper.SetDefault("http.address", "0.0.0.0:8080")
+	viper.SetDefault("http.timeout", "30s")
+	viper.SetDefault("http.swagger_spec", "./api/swagger.yaml")
+	viper.SetDefault("http.mock_auth", false)
+	viper.SetDefault("http.admin_emails", []string{})
+
+	// CORS defaults
+	viper.SetDefault("http.cors.enabled", true)
+	viper.SetDefault("http.cors.allowed_origins", []string{"*"})
+	viper.SetDefault("http.cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"})
+	viper.SetDefault("http.cors.allowed_headers", []string{"*"})
+	viper.SetDefault("http.cors.max_age", 3600)
+
+	// Rate limit defaults
+	viper.SetDefault("http.rate_limit.enabled", false)
+	viper.SetDefault("http.rate_limit.requests_per_sec", 100.0)
+	viper.SetDefault("http.rate_limit.burst", 20)
+
+	// Gatekeeper defaults (for future use)
+	viper.SetDefault("http.gatekeeper.address", "localhost:9091")
+	viper.SetDefault("http.gatekeeper.timeout", "5s")
 }

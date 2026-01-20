@@ -38,6 +38,15 @@ jobs:
       - name: Install golangci-lint
         run: make lint-install
 
+      - name: Install go-swagger
+        run: make swagger-install
+
+      - name: Validate Swagger spec
+        run: make swagger-validate
+
+      - name: Generate API code
+        run: make generate-api
+
       - name: Lint
         run: make lint
 
@@ -65,6 +74,15 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Install go-swagger
+        run: make swagger-install
+
+      - name: Validate Swagger spec
+        run: make swagger-validate
+
+      - name: Generate API code
+        run: make generate-api
+
       - name: Test
         run: make test
 
@@ -91,6 +109,12 @@ jobs:
 
       - name: Install dependencies
         run: go mod download
+
+      - name: Install go-swagger
+        run: make swagger-install
+
+      - name: Generate API code
+        run: make generate-api
 
       - name: Build
         run: make build

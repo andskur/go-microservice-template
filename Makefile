@@ -14,8 +14,8 @@ GITVER_PKG:=microservice-template/pkg/version
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-# set git related vars for versioning
-TAG 		:= $(shell git describe --abbrev=0 --tags)
+# set git related vars for versioning (tolerate repos without tags)
+TAG 		:= $(shell git describe --abbrev=0 --tags 2>/dev/null || true)
 COMMIT		:= $(shell git rev-parse HEAD)
 BRANCH		?= $(shell git rev-parse --abbrev-ref HEAD)
 REMOTE		:= $(shell git config --get remote.origin.url)
@@ -36,6 +36,7 @@ LDFLAGS += -X $(GITVER_PKG).CommitSHA=$(COMMIT)
 LDFLAGS += -X $(GITVER_PKG).CommitBranch=$(BRANCH)
 LDFLAGS += -X $(GITVER_PKG).OriginURL=$(REMOTE)
 LDFLAGS += -X $(GITVER_PKG).BuildDate=$(BUILD_DATE)
+LDFLAGS += -X $(GITVER_PKG).Release=$(RELEASE)
 
 # The all target runs the tidy, build, and test targets
 all: tidy build test
@@ -261,6 +262,46 @@ proto-clean:
 	@find $(PROTO_DIR) -name "*.pb.go" -type f -delete
 	@find $(PROTO_DIR) -name "*_grpc.pb.go" -type f -delete
 	@echo "Generated proto files removed"
+
+# Swagger/HTTP API targets
+.PHONY: swagger-install
+swagger-install:
+	@which swagger > /dev/null || (echo "Installing go-swagger..." && go install github.com/go-swagger/go-swagger/cmd/swagger@latest)
+	@echo "go-swagger installed successfully"
+
+.PHONY: swagger-validate
+swagger-validate:
+	@echo "Validating swagger specification..."
+	@swagger validate api/swagger.yaml
+	@echo "Swagger spec is valid"
+
+.PHONY: generate-api
+generate-api:
+	@echo "Generating API server from swagger spec..."
+	@swagger generate server \
+		-A $(APP)-api \
+		-P models.User \
+		--server-package server \
+		-f ./api/swagger.yaml \
+		--exclude-main \
+		--keep-spec-order \
+		--flag-strategy pflag \
+		--target ./internal/http \
+		--spec ./api/swagger.yaml
+	@echo "Tidying go modules..."
+	@go mod tidy
+	@echo "API generation complete"
+
+.PHONY: swagger-clean
+swagger-clean:
+	@echo "Cleaning generated swagger code..."
+	@rm -rf internal/http/server
+	@echo "Generated swagger code removed"
+
+.PHONY: test-http
+test-http:
+	@echo "Running HTTP module tests..."
+	@go test -v -race -count=1 ./internal/http/...
 
 # Template synchronization
 TEMPLATE_REMOTE_NAME := template

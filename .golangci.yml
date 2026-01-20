@@ -4,6 +4,8 @@ run:
 issues:
   exclude-dirs:
     - vendor
+    - internal/http/server
+    - internal/http/models
   exclude-files:
     - ".*\\.pb\\.go$"
     - ".*\\.gen\\.go$"

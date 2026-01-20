@@ -518,6 +518,404 @@ internal/
 5. Register handlers in `module.go -> registerHandlers()`.
 6. Keep HealthCheck fast (<2s); server already registers standard health service.
 
+## HTTP Module Patterns
+
+The HTTP module provides a REST API using go-swagger for spec-first development with Swagger 2.0.
+
+- Module path: `internal/http/` (implements `module.Module`).
+- Configuration: `config.HTTPConfig` (`http.*` keys) with defaults in `config/init.go`.
+- Registration: optional, enabled when `http.enabled=true` in config; wired in `internal/application.go` after service module.
+- API Specification: `api/swagger.yaml` (Swagger 2.0 format); server code generated to `internal/http/server/` (gitignored).
+- Handlers: implemented in `internal/http/handlers/` as structs with dependencies and `Handle()` method.
+- Formatters: `internal/http/formatter/` converts domain models ↔ API models (generated from swagger).
+- Middleware: Recovery → Logger → CORS → RateLimit chain using `justinas/alice`.
+- Authentication: JWT validation in `internal/http/auth/auth.go`; mock mode for development with `http.mock_auth=true`.
+- Health endpoint: `GET /health` checks all module health; returns 200 OK with status JSON.
+
+### Swagger Workflow
+
+```bash
+# Install go-swagger (one-time)
+make swagger-install
+
+# Edit api/swagger.yaml to define your endpoints
+
+# Validate specification
+make swagger-validate
+
+# Generate server code (creates internal/http/server/ and internal/http/models/)
+make generate-api
+
+# Clean generated code
+make swagger-clean
+```
+
+**Important**: Use Swagger 2.0 format (not OpenAPI 3.0); go-swagger doesn't support OpenAPI 3.0 yet.
+
+### Adding a New HTTP Endpoint
+
+**Step 1: Define endpoint in `api/swagger.yaml`**
+
+```yaml
+paths:
+  /widgets/{id}:
+    get:
+      summary: Get widget by ID
+      operationId: getWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          format: uuid
+      responses:
+        200:
+          description: Widget found
+          schema:
+            $ref: '#/definitions/Widget'
+        404:
+          description: Widget not found
+          schema:
+            $ref: '#/definitions/Error'
+      security:
+        - Bearer: []
+
+definitions:
+  Widget:
+    type: object
+    required:
+      - id
+      - name
+    properties:
+      id:
+        type: string
+        format: uuid
+      name:
+        type: string
+      status:
+        type: string
+        enum: [active, inactive]
+```
+
+**Step 2: Generate server code**
+
+```bash
+make generate-api
+```
+
+**Step 3: Create handler in `internal/http/handlers/widgets.go`**
+
+```go
+package handlers
+
+import (
+    "errors"
+    "net/http"
+
+    "github.com/go-openapi/runtime"
+    "github.com/gofrs/uuid"
+    "github.com/sirupsen/logrus"
+
+    "microservice-template/internal/http/formatter"
+    "microservice-template/internal/http/models"
+    "microservice-template/internal/service"
+)
+
+// GetWidgetHandler handles GET /widgets/{id} requests.
+type GetWidgetHandler struct {
+    service service.IService
+    log     *logrus.Logger
+}
+
+// NewGetWidgetHandler creates a new GetWidgetHandler.
+func NewGetWidgetHandler(svc service.IService, log *logrus.Logger) *GetWidgetHandler {
+    return &GetWidgetHandler{
+        service: svc,
+        log:     log,
+    }
+}
+
+// Handle processes the request.
+func (h *GetWidgetHandler) Handle(w http.ResponseWriter, r *http.Request) {
+    // Extract path parameter
+    vars := mux.Vars(r)
+    idStr := vars["id"]
+    
+    // Parse UUID
+    id, err := uuid.FromString(idStr)
+    if err != nil {
+        DefaultError(w, http.StatusBadRequest, "Invalid ID format")
+        return
+    }
+    
+    // Call service
+    widget, err := h.service.GetWidgetByID(r.Context(), id)
+    if err != nil {
+        // Map service errors to HTTP status codes
+        if errors.Is(err, service.ErrNotFound) {
+            DefaultError(w, http.StatusNotFound, "Widget not found")
+            return
+        }
+        if errors.Is(err, service.ErrRepositoryUnavailable) {
+            DefaultError(w, http.StatusServiceUnavailable, "Service temporarily unavailable")
+            return
+        }
+        h.log.Errorf("get widget by id: %v", err)
+        DefaultError(w, http.StatusInternalServerError, "Internal server error")
+        return
+    }
+    
+    // Convert domain model to API model
+    apiWidget := formatter.WidgetToAPI(widget)
+    
+    // Return success response
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    if err := json.NewEncoder(w).Encode(apiWidget); err != nil {
+        h.log.Errorf("encode response: %v", err)
+    }
+}
+```
+
+**Step 4: Create formatter in `internal/http/formatter/widget.go`**
+
+```go
+package formatter
+
+import (
+    domainModels "microservice-template/internal/models"
+    apiModels "microservice-template/internal/http/models"
+)
+
+// WidgetToAPI converts domain Widget to API Widget.
+func WidgetToAPI(widget *domainModels.Widget) *apiModels.Widget {
+    if widget == nil {
+        return nil
+    }
+    
+    return &apiModels.Widget{
+        ID:     widget.ID.String(),
+        Name:   widget.Name,
+        Status: widget.Status.String(),
+    }
+}
+
+// WidgetFromAPI converts API Widget to domain Widget.
+func WidgetFromAPI(apiWidget *apiModels.Widget) (*domainModels.Widget, error) {
+    if apiWidget == nil {
+        return nil, nil
+    }
+    
+    id, err := uuid.FromString(apiWidget.ID)
+    if err != nil {
+        return nil, fmt.Errorf("parse id: %w", err)
+    }
+    
+    status, err := domainModels.WidgetStatusFromString(apiWidget.Status)
+    if err != nil {
+        return nil, fmt.Errorf("parse status: %w", err)
+    }
+    
+    return &domainModels.Widget{
+        ID:     id,
+        Name:   apiWidget.Name,
+        Status: status,
+    }, nil
+}
+```
+
+**Step 5: Register handler in `internal/http/module.go`**
+
+```go
+func (m *Module) setupRoutes() http.Handler {
+    // ... existing middleware setup ...
+    
+    // Create handlers
+    getUserHandler := handlers.NewGetUserHandler(m.service, m.log)
+    getWidgetHandler := handlers.NewGetWidgetHandler(m.service, m.log)
+    healthHandler := handlers.NewHealthHandler(m.manager, m.log)
+    
+    // Setup router
+    router := mux.NewRouter()
+    
+    // Public routes
+    router.HandleFunc("/health", healthHandler.Handle).Methods(http.MethodGet)
+    
+    // Protected routes (require JWT)
+    protected := router.PathPrefix("").Subrouter()
+    protected.Use(m.auth.Authenticate)
+    protected.HandleFunc("/users", getUserHandler.Handle).Methods(http.MethodGet)
+    protected.HandleFunc("/widgets/{id}", getWidgetHandler.Handle).Methods(http.MethodGet)
+    
+    // Apply middleware chain
+    return m.middleware.Then(router)
+}
+```
+
+**Step 6: Test the handler in `internal/http/handlers/widgets_test.go`**
+
+```go
+package handlers
+
+import (
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+
+    "github.com/gofrs/uuid"
+    "github.com/gorilla/mux"
+
+    "microservice-template/internal/models"
+    "microservice-template/internal/service"
+    "microservice-template/pkg/logger"
+)
+
+func TestGetWidgetHandler_Success(t *testing.T) {
+    widgetID := uuid.Must(uuid.NewV4())
+    
+    mockSvc := &MockService{
+        GetWidgetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.Widget, error) {
+            return &models.Widget{
+                ID:     widgetID,
+                Name:   "Test Widget",
+                Status: models.WidgetActive,
+            }, nil
+        },
+    }
+    
+    handler := NewGetWidgetHandler(mockSvc, logger.Log())
+    
+    req := httptest.NewRequest(http.MethodGet, "/widgets/"+widgetID.String(), nil)
+    req = mux.SetURLVars(req, map[string]string{"id": widgetID.String()})
+    w := httptest.NewRecorder()
+    
+    handler.Handle(w, req)
+    
+    if w.Code != http.StatusOK {
+        t.Errorf("expected status 200, got %d", w.Code)
+    }
+}
+
+func TestGetWidgetHandler_NotFound(t *testing.T) {
+    mockSvc := &MockService{
+        GetWidgetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.Widget, error) {
+            return nil, service.ErrNotFound
+        },
+    }
+    
+    handler := NewGetWidgetHandler(mockSvc, logger.Log())
+    
+    req := httptest.NewRequest(http.MethodGet, "/widgets/"+uuid.Must(uuid.NewV4()).String(), nil)
+    w := httptest.NewRecorder()
+    
+    handler.Handle(w, req)
+    
+    if w.Code != http.StatusNotFound {
+        t.Errorf("expected status 404, got %d", w.Code)
+    }
+}
+```
+
+### HTTP Error Mapping Pattern
+
+Map service errors to HTTP status codes consistently:
+
+```go
+// Service error → HTTP status mapping
+if err != nil {
+    switch {
+    case errors.Is(err, service.ErrNotFound):
+        DefaultError(w, http.StatusNotFound, "Resource not found")
+    case errors.Is(err, service.ErrInvalidInput):
+        DefaultError(w, http.StatusBadRequest, "Invalid input")
+    case errors.Is(err, service.ErrRepositoryUnavailable):
+        DefaultError(w, http.StatusServiceUnavailable, "Service temporarily unavailable")
+    default:
+        h.log.Errorf("unexpected error: %v", err)
+        DefaultError(w, http.StatusInternalServerError, "Internal server error")
+    }
+    return
+}
+```
+
+### HTTP Authentication Pattern
+
+**Production JWT validation:**
+```go
+// internal/http/auth/auth.go implements JWT validation
+// Protected routes get user context from auth middleware
+userID := auth.GetUserID(r)
+email := auth.GetEmail(r)
+isAdmin := auth.IsAdmin(r)
+```
+
+**Development mock mode:**
+```bash
+# Bypass JWT validation for local testing
+export HTTP_MOCK_AUTH=true
+curl -H "Authorization: Bearer any-token" http://localhost:8080/users
+```
+
+**Gatekeeper integration:**
+See detailed TODO in `internal/http/auth/auth.go` for external auth service integration steps.
+
+### HTTP Testing Patterns
+
+**Mock service for handler tests:**
+```go
+type MockService struct {
+    GetWidgetByIDFunc func(ctx context.Context, id uuid.UUID) (*models.Widget, error)
+}
+
+func (m *MockService) GetWidgetByID(ctx context.Context, id uuid.UUID) (*models.Widget, error) {
+    if m.GetWidgetByIDFunc != nil {
+        return m.GetWidgetByIDFunc(ctx, id)
+    }
+    return nil, errors.New("not implemented")
+}
+```
+
+**Table-driven handler tests:**
+```go
+func TestGetWidgetHandler(t *testing.T) {
+    tests := []struct {
+        name           string
+        widgetID       string
+        mockFunc       func(ctx context.Context, id uuid.UUID) (*models.Widget, error)
+        expectedStatus int
+    }{
+        {
+            name:     "success",
+            widgetID: uuid.Must(uuid.NewV4()).String(),
+            mockFunc: func(ctx context.Context, id uuid.UUID) (*models.Widget, error) {
+                return &models.Widget{ID: id, Name: "Test"}, nil
+            },
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:     "not found",
+            widgetID: uuid.Must(uuid.NewV4()).String(),
+            mockFunc: func(ctx context.Context, id uuid.UUID) (*models.Widget, error) {
+                return nil, service.ErrNotFound
+            },
+            expectedStatus: http.StatusNotFound,
+        },
+        {
+            name:           "invalid uuid",
+            widgetID:       "not-a-uuid",
+            expectedStatus: http.StatusBadRequest,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // ... test implementation
+        })
+    }
+}
+```
+
 ## Troubleshooting
 
 ### Module not starting

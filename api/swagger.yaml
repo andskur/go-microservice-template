@@ -1,0 +1,214 @@
+swagger: "2.0"
+info:
+  title: Microservice Template API
+  description: RESTful API for microservice template with go-swagger
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+host: localhost:8080
+basePath: /
+schemes:
+  - http
+  - https
+
+consumes:
+  - application/json
+produces:
+  - application/json
+
+securityDefinitions:
+  jwt:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: "JWT token. Format: Bearer {token}"
+
+security:
+  - jwt: []
+
+paths:
+  /users:
+    get:
+      summary: Get user by email
+      description: Retrieves a user by their email address
+      operationId: getUserByEmail
+      tags:
+        - users
+      security:
+        - jwt: []
+      parameters:
+        - name: email
+          in: query
+          description: User email address
+          required: true
+          type: string
+          format: email
+          x-example: "user@example.com"
+      responses:
+        200:
+          description: User found
+          schema:
+            $ref: "#/definitions/User"
+        400:
+          description: Invalid input (missing/invalid email)
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 400
+              message: "invalid input: email is required"
+        401:
+          description: Unauthorized (invalid/missing JWT token)
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 401
+              message: "unauthorized access or invalid credentials"
+        404:
+          description: User not found
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 404
+              message: "resource not found: user with email user@example.com"
+        500:
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 500
+              message: "internal server error"
+        503:
+          description: Service unavailable (e.g., database disabled)
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 503
+              message: "repository not available: database module not enabled"
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns health status of the service and its dependencies
+      operationId: getHealth
+      tags:
+        - health
+      security: []
+      responses:
+        200:
+          description: Service is healthy
+          schema:
+            $ref: "#/definitions/Health"
+          examples:
+            application/json:
+              status: "healthy"
+              version: "v1.0.0"
+              timestamp: "2024-01-20T10:30:00Z"
+        503:
+          description: Service is unhealthy
+          schema:
+            $ref: "#/definitions/Error"
+          examples:
+            application/json:
+              code: 503
+              message: "service unhealthy"
+
+definitions:
+  User:
+    type: object
+    required:
+      - uuid
+      - email
+      - name
+      - status
+    properties:
+      uuid:
+        type: string
+        format: uuid
+        description: Unique identifier for the user
+        readOnly: true
+        x-example: "550e8400-e29b-41d4-a716-446655440000"
+      email:
+        type: string
+        format: email
+        description: User email address (unique)
+        x-example: "user@example.com"
+      name:
+        type: string
+        minLength: 1
+        maxLength: 255
+        description: User full name
+        x-example: "John Doe"
+      status:
+        type: string
+        enum:
+          - active
+          - deleted
+        description: User account status
+        x-example: "active"
+      created_at:
+        type: string
+        format: date-time
+        description: Timestamp when user was created (UTC)
+        readOnly: true
+        x-example: "2024-01-20T10:30:00Z"
+      updated_at:
+        type: string
+        format: date-time
+        description: Timestamp when user was last updated (UTC)
+        readOnly: true
+        x-example: "2024-01-20T10:30:00Z"
+
+  Health:
+    type: object
+    required:
+      - status
+    properties:
+      status:
+        type: string
+        enum:
+          - healthy
+          - unhealthy
+        description: Overall health status of the service
+        x-example: "healthy"
+      version:
+        type: string
+        description: Service version information
+        x-example: "v1.0.0"
+      timestamp:
+        type: string
+        format: date-time
+        description: Timestamp when health check was performed (UTC)
+        x-example: "2024-01-20T10:30:00Z"
+
+  Error:
+    type: object
+    required:
+      - code
+      - message
+    properties:
+      code:
+        type: integer
+        format: int64
+        description: HTTP status code
+        x-example: 404
+      message:
+        type: string
+        description: Human-readable error message
+        x-example: "Resource not found"
+      details:
+        type: object
+        description: Additional error details (optional)
+        additionalProperties: true
+        x-example:
+          field: "email"
+          reason: "invalid format"
