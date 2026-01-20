@@ -916,6 +916,555 @@ func TestGetWidgetHandler(t *testing.T) {
 }
 ```
 
+## gRPC Client Module Pattern
+
+The gRPC client module enables HTTP handlers (or other transports) to fetch data from external gRPC microservices. Uses hybrid architecture: reusable client library in `pkg/` (proto types only) with module wrapper in `internal/` (conversions + lifecycle).
+
+### Architecture
+
+```
+pkg/userservice/              # Pure gRPC client (proto only)
+├── interface.go             # IUserServiceClient (proto types)
+├── userservice.go           # Client implementation
+└── userservice_test.go      # Unit tests (optional)
+
+internal/grpcclient/         # Module wrapper (domain types)
+├── interface.go             # IClient interface for testability
+├── module.go                # Lifecycle + domain methods
+├── conversions.go           # Proto ↔ internal/models
+├── module_test.go           # Lifecycle tests
+├── conversions_test.go      # Conversion tests
+└── mock/
+    └── mock.go              # Mock implementation for tests
+
+internal/http/
+├── module.go                # Receives grpcClient in constructor
+└── handlers/
+    └── users.go             # Uses grpcClient for external data
+```
+
+### Key Principles
+
+1. **Clean separation**: pkg has NO internal/ dependencies; works only with proto types
+2. **Module boundary**: conversions happen in internal/grpcclient; module exposes domain types
+3. **Interface-based**: IClient interface allows easy mocking and testing
+4. **HTTP integration**: HTTP module receives grpcClient; passes to handlers
+5. **Service independence**: service layer has NO external client dependencies
+6. **Handler flexibility**: handlers choose strategy (external, local, both)
+
+### Implementation Steps
+
+**Step 1: Define Protocol**
+
+```protobuf
+// protocols/userservice/user.proto
+syntax = "proto3";
+package userservice;
+
+option go_package = "microservice-template/protocols/userservice";
+
+service UserService {
+  rpc GetUserByEmail(EmailRequest) returns (User);
+  rpc GetUserByUUID(UUIDRequest) returns (User);
+  rpc CreateUser(CreateUserRequest) returns (User);
+}
+
+message User {
+  bytes uuid = 1;
+  string email = 2;
+  string name = 3;
+  UserStatus status = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_DELETED = 2;
+}
+
+message EmailRequest {
+  string email = 1;
+}
+
+message UUIDRequest {
+  bytes uuid = 1;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string name = 2;
+  UserStatus status = 3;
+}
+```
+
+Generate: `make proto-generate PROTO_PACKAGE=userservice`
+
+**Step 2: Create Pure Client (pkg)**
+
+```go
+// pkg/userservice/interface.go
+package userservice
+
+import (
+    "context"
+    proto "microservice-template/protocols/userservice"
+)
+
+// IUserServiceClient works with proto types only
+type IUserServiceClient interface {
+    UserByEmail(ctx context.Context, email string) (*proto.User, error)
+    UserByUUID(ctx context.Context, uuidBytes []byte) (*proto.User, error)
+    CreateUser(ctx context.Context, req *proto.CreateUserRequest) (*proto.User, error)
+    Close() error
+}
+```
+
+```go
+// pkg/userservice/userservice.go
+package userservice
+
+import (
+    "context"
+    "fmt"
+    "time"
+    
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/keepalive"
+    proto "microservice-template/protocols/userservice"
+)
+
+type Client struct {
+    addr    string
+    timeout time.Duration
+    conn    *grpc.ClientConn
+    client  proto.UserServiceClient
+}
+
+func New(address string, timeout time.Duration, kacp keepalive.ClientParameters) (IUserServiceClient, error) {
+    c := &Client{addr: address, timeout: timeout}
+    
+    conn, err := grpc.Dial(address, 
+        grpc.WithInsecure(),
+        grpc.WithKeepaliveParams(kacp))
+    if err != nil {
+        return nil, fmt.Errorf("dial %s: %w", address, err)
+    }
+    
+    c.conn = conn
+    c.client = proto.NewUserServiceClient(conn)
+    return c, nil
+}
+
+func (c *Client) UserByEmail(ctx context.Context, email string) (*proto.User, error) {
+    ctx, cancel := context.WithTimeout(ctx, c.timeout)
+    defer cancel()
+    
+    req := &proto.EmailRequest{Email: email}
+    return c.client.GetUserByEmail(ctx, req)
+}
+
+func (c *Client) Close() error {
+    if c.conn != nil {
+        return c.conn.Close()
+    }
+    return nil
+}
+```
+
+**Step 3: Create Module Wrapper (internal)**
+
+```go
+// internal/grpcclient/interface.go
+package grpcclient
+
+import (
+    "context"
+    "github.com/gofrs/uuid"
+    "microservice-template/internal/models"
+)
+
+// IClient defines interface for gRPC client operations
+// Enables easy mocking in tests
+type IClient interface {
+    Name() string
+    Init(ctx context.Context) error
+    Start(ctx context.Context) error
+    Stop(ctx context.Context) error
+    HealthCheck(ctx context.Context) error
+    
+    GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+    GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*models.User, error)
+    CreateUser(ctx context.Context, user *models.User) (*models.User, error)
+}
+```
+
+```go
+// internal/grpcclient/module.go
+package grpcclient
+
+import (
+    "context"
+    "fmt"
+    "time"
+    
+    "microservice-template/config"
+    "microservice-template/internal/models"
+    "microservice-template/pkg/userservice"
+)
+
+type Module struct {
+    config *config.GRPCClientConfig
+    client userservice.IUserServiceClient
+}
+
+func NewModule(cfg *config.GRPCClientConfig) *Module {
+    return &Module{config: cfg}
+}
+
+func (m *Module) Init(ctx context.Context) error {
+    timeout, _ := time.ParseDuration(m.config.Timeout)
+    kaTime, _ := time.ParseDuration(m.config.KeepAlive.Time)
+    kaTimeout, _ := time.ParseDuration(m.config.KeepAlive.Timeout)
+    
+    kacp := keepalive.ClientParameters{
+        Time:                kaTime,
+        Timeout:             kaTimeout,
+        PermitWithoutStream: m.config.KeepAlive.PermitWithoutStream,
+    }
+    
+    client, err := userservice.New(m.config.Address, timeout, kacp)
+    if err != nil {
+        return fmt.Errorf("create client: %w", err)
+    }
+    
+    m.client = client
+    return nil
+}
+
+func (m *Module) Stop(ctx context.Context) error {
+    if m.client != nil {
+        return m.client.Close()
+    }
+    return nil
+}
+
+// Expose domain-model methods
+func (m *Module) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+    pbUser, err := m.client.UserByEmail(ctx, email)
+    if err != nil {
+        return nil, mapError(err)
+    }
+    return UserFromProto(pbUser)  // Conversion at boundary
+}
+```
+
+```go
+// internal/grpcclient/conversions.go
+package grpcclient
+
+import (
+    "fmt"
+    "time"
+    "github.com/gofrs/uuid"
+    "microservice-template/internal/models"
+    proto "microservice-template/protocols/userservice"
+)
+
+func UserFromProto(pb *proto.User) (*models.User, error) {
+    userUUID, err := uuid.FromBytes(pb.Uuid)
+    if err != nil {
+        return nil, fmt.Errorf("parse uuid: %w", err)
+    }
+    
+    status, err := UserStatusFromProto(pb.Status)
+    if err != nil {
+        return nil, fmt.Errorf("parse status: %w", err)
+    }
+    
+    return &models.User{
+        UUID:      userUUID,
+        Email:     pb.Email,
+        Name:      pb.Name,
+        Status:    status,
+        CreatedAt: time.Unix(pb.CreatedAt, 0),
+        UpdatedAt: time.Unix(pb.UpdatedAt, 0),
+    }, nil
+}
+
+func UserStatusToProto(status models.UserStatus) proto.UserStatus {
+    switch status {
+    case models.UserActive:
+        return proto.UserStatus_USER_STATUS_ACTIVE
+    case models.UserDeleted:
+        return proto.UserStatus_USER_STATUS_DELETED
+    default:
+        return proto.UserStatus_USER_STATUS_UNSPECIFIED
+    }
+}
+```
+
+**Step 4: Create Mock for Testing**
+
+```go
+// internal/grpcclient/mock/mock.go
+package mock
+
+import (
+    "context"
+    "github.com/gofrs/uuid"
+    "microservice-template/internal/grpcclient"
+    "microservice-template/internal/models"
+)
+
+type GRPCClient struct {
+    GetUserByEmailFunc func(ctx context.Context, email string) (*models.User, error)
+    GetUserByUUIDFunc  func(ctx context.Context, userUUID uuid.UUID) (*models.User, error)
+    CreateUserFunc     func(ctx context.Context, user *models.User) (*models.User, error)
+}
+
+var _ grpcclient.IClient = (*GRPCClient)(nil)
+
+func (m *GRPCClient) Name() string { return "mock-grpc-client" }
+func (m *GRPCClient) Init(ctx context.Context) error { return nil }
+func (m *GRPCClient) Start(ctx context.Context) error { return nil }
+func (m *GRPCClient) Stop(ctx context.Context) error { return nil }
+func (m *GRPCClient) HealthCheck(ctx context.Context) error { return nil }
+
+func (m *GRPCClient) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+    if m.GetUserByEmailFunc != nil {
+        return m.GetUserByEmailFunc(ctx, email)
+    }
+    return nil, nil
+}
+```
+
+**Step 5: Update HTTP Module**
+
+```go
+// internal/http/module.go
+type Module struct {
+    config     *config.HTTPConfig
+    service    service.IService
+    grpcClient grpcclient.IClient  // Interface, not concrete type
+    // ...
+}
+
+func NewModule(cfg *config.HTTPConfig, svc service.IService, grpcClient grpcclient.IClient) *Module {
+    return &Module{
+        config:     cfg,
+        service:    svc,
+        grpcClient: grpcClient,
+    }
+}
+
+func (m *Module) initAPI() error {
+    // Pass grpcClient to handlers
+    api.UsersGetUserByEmailHandler = handlers.NewGetUserByEmail(m.service, m.grpcClient)
+    return nil
+}
+```
+
+**Step 6: Update Handler**
+
+```go
+// internal/http/handlers/users.go
+type GetUserByEmail struct {
+    service    service.IService
+    grpcClient grpcclient.IClient
+}
+
+func NewGetUserByEmail(svc service.IService, grpcClient grpcclient.IClient) *GetUserByEmail {
+    return &GetUserByEmail{
+        service:    svc,
+        grpcClient: grpcClient,
+    }
+}
+
+func (h *GetUserByEmail) Handle(params users.GetUserByEmailParams, _ *models.User) middleware.Responder {
+    email := string(params.Email)
+    ctx := context.Background()
+    
+    // Check if grpcClient is available
+    if h.grpcClient == nil {
+        return users.NewGetUserByEmailServiceUnavailable().
+            WithPayload(DefaultError(http.StatusServiceUnavailable, 
+                fmt.Errorf("external user service not available"), nil))
+    }
+    
+    // Fetch from external service
+    user, err := h.grpcClient.GetUserByEmail(ctx, email)
+    
+    // NOTE: Alternative patterns available:
+    // - Fetch from local: h.service.GetUserByEmail(ctx, email)
+    // - Try external, fallback to local
+    // - Aggregate both sources
+    
+    if err != nil {
+        // Map errors to HTTP status codes
+        errStr := err.Error()
+        if strings.Contains(errStr, "not found") {
+            return users.NewGetUserByEmailNotFound().
+                WithPayload(DefaultError(http.StatusNotFound, err, nil))
+        }
+        // ... more error handling
+    }
+    
+    return users.NewGetUserByEmailOK().WithPayload(formatter.UserToAPI(user))
+}
+```
+
+**Step 7: Register in Application**
+
+```go
+// internal/application.go
+func (app *App) registerModules() error {
+    // 1. Infrastructure: Repository
+    var repoModule *repository.Module
+    if app.config.Database != nil && app.config.Database.Enabled {
+        repoModule = repository.NewModule(app.config.Database)
+        app.modules.Register(repoModule)
+    }
+    
+    // 2. Infrastructure: gRPC Client
+    var grpcClientModule *grpcclient.Module
+    if app.config.GRPCClient != nil && app.config.GRPCClient.Enabled {
+        grpcClientModule = grpcclient.NewModule(app.config.GRPCClient)
+        app.modules.Register(grpcClientModule)
+    }
+    
+    // 3. Business logic: Service (no grpcClient dependency)
+    var repo repository.IRepository
+    if repoModule != nil {
+        repo = repoModule.Repository()
+    }
+    svcModule := service.NewModule(repo)
+    app.modules.Register(svcModule)
+    
+    // Capture service
+    app.svc = svcModule.Service()
+    
+    // 4. Transport: HTTP (receives both service and grpcClient)
+    if app.config.HTTP != nil && app.config.HTTP.Enabled {
+        httpModule := httpmod.NewModule(app.config.HTTP, app.svc, grpcClientModule)
+        app.modules.Register(httpModule)
+    }
+    
+    return nil
+}
+```
+
+**Step 8: Test with Mock**
+
+```go
+// internal/http/handlers/users_test.go
+import "microservice-template/internal/grpcclient/mock"
+
+func TestGetUserByEmail_Success(t *testing.T) {
+    expectedUser := &models.User{
+        UUID:  uuid.Must(uuid.NewV4()),
+        Email: "test@example.com",
+        Name:  "Test User",
+    }
+    
+    grpcClient := &mock.GRPCClient{
+        GetUserByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
+            return expectedUser, nil
+        },
+    }
+    
+    handler := NewGetUserByEmail(service, grpcClient)
+    
+    // Test handler...
+}
+```
+
+### Handler Strategy Patterns
+
+**Pattern 1: External Only (Current)**
+```go
+if h.grpcClient == nil {
+    return 503 Service Unavailable
+}
+user, err := h.grpcClient.GetUserByEmail(ctx, email)
+```
+
+**Pattern 2: Local Only**
+```go
+user, err := h.service.GetUserByEmail(ctx, email)
+```
+
+**Pattern 3: External with Local Fallback**
+```go
+user, err := h.grpcClient.GetUserByEmail(ctx, email)
+if err != nil {
+    logger.Log().Warnf("external failed, trying local: %v", err)
+    user, err = h.service.GetUserByEmail(ctx, email)
+}
+```
+
+**Pattern 4: Aggregate Both**
+```go
+externalUser, _ := h.grpcClient.GetUserByEmail(ctx, email)
+localUser, _ := h.service.GetUserByEmail(ctx, email)
+user := mergeUserData(externalUser, localUser)
+```
+
+### Error Handling
+
+**Module maps gRPC errors:**
+```go
+func mapError(err error) error {
+    if strings.Contains(err.Error(), "not found") {
+        return fmt.Errorf("user not found: %w", err)
+    }
+    if strings.Contains(err.Error(), "unavailable") {
+        return fmt.Errorf("service unavailable: %w", err)
+    }
+    return err
+}
+```
+
+**Handler maps to HTTP status:**
+```go
+switch {
+case strings.Contains(err.Error(), "not found"):
+    return 404 Not Found
+case strings.Contains(err.Error(), "invalid"):
+    return 400 Bad Request
+case strings.Contains(err.Error(), "unavailable"):
+    return 503 Service Unavailable
+default:
+    return 500 Internal Server Error
+}
+```
+
+### Best Practices
+
+1. **Pkg purity**: Keep pkg/ free of internal/ imports
+2. **Boundary conversions**: Convert proto ↔ domain at module boundary
+3. **Interface-based**: Use IClient interface for testability
+4. **Handler flexibility**: Let handlers choose data source strategy
+5. **Service independence**: Service has no external dependencies
+6. **Graceful degradation**: Return 503 when external service unavailable
+7. **Error context**: Wrap errors with operation context
+8. **Timeout management**: Per-request timeouts + keep-alive
+9. **Testing**: Mock interfaces at each layer
+
+### Configuration Example
+
+```yaml
+grpc_client:
+  enabled: true
+  address: "user-service:9090"
+  timeout: "30s"
+  keep_alive:
+    time: "10s"
+    timeout: "1s"
+    permit_without_stream: true
+```
+
 ## Troubleshooting
 
 ### Module not starting

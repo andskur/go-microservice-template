@@ -134,6 +134,47 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Register services in `registerHandlers()`.
 - Add conversion helpers under `internal/grpc/` for model↔proto mappings.
 
+### gRPC Client Module
+- Optional; enabled via `grpc_client.enabled=true` in config.
+- Config struct: `config.GRPCClientConfig` (`grpc_client.*` keys), defaults in `config/init.go`.
+- Hybrid architecture: pure gRPC client in `pkg/userservice/`, module wrapper in `internal/grpcclient/`.
+- Client library: `pkg/userservice/` provides gRPC client interface working with proto types only; no internal/ dependencies.
+- Module wrapper: `internal/grpcclient/` implements `module.Module` (Init/Start/Stop/HealthCheck) and `IClient` interface.
+- Conversions: `internal/grpcclient/conversions.go` converts proto ↔ `internal/models` domain types at module boundary.
+- Registration: infrastructure level (after database, before service); no dependency on service layer.
+- HTTP integration: HTTP module receives `grpcclient.IClient` interface; handlers use it to fetch from external services.
+- Service independence: service layer handles local business logic only; does NOT depend on grpcClient.
+- Health check: simple client initialization check; actual RPC calls use per-request timeouts.
+- Graceful shutdown: closes gRPC connection in `Stop()`.
+- Error handling: module maps gRPC errors (not found, unavailable) to domain errors; handlers return 503 when client is nil.
+- Keep-alive: configurable via `grpc_client.keep_alive.*` for connection health.
+- Interface-based: `IClient` interface enables easy mocking in tests; mock implementation in `internal/grpcclient/mock/`.
+
+### gRPC Client Patterns
+- Location: hybrid - pure gRPC client in `pkg/<servicename>/`, module wrapper in `internal/grpcclient/`.
+- Separation: pkg works with proto types only; module handles proto ↔ domain conversions at boundary.
+- Interface: `IClient` interface in `internal/grpcclient/interface.go` for testability; Module implements it.
+- Mock: `internal/grpcclient/mock/` provides mock implementation for handler tests.
+- Conversions: live in `internal/grpcclient/conversions.go`; convert between proto and `internal/models`.
+- HTTP integration: inject `grpcclient.IClient` into HTTP module constructor; pass to handlers needing external data.
+- Handler patterns: handlers decide strategy (external only, local only, fallback, aggregate); currently external only with 503 if unavailable.
+- Service independence: service layer handles local logic; no external client dependencies.
+- Error mapping: module wraps gRPC errors with context; handlers check error strings and map to HTTP status.
+- Timeout: use per-request context timeouts from config; keep-alive for connection health.
+- Lifecycle: Init establishes connection, Stop closes; Start is no-op; HealthCheck verifies client initialized.
+- Testing: use `mock.GRPCClient` for handler tests; test conversions separately; module lifecycle tests verify Init/Start/Stop.
+
+### Adding a New External Service Client
+1. Define proto in `protocols/<servicename>/*.proto`; generate with `make proto-generate PROTO_PACKAGE=<servicename>`.
+2. Create client library in `pkg/<servicename>/`: interface (proto types), implementation, unit tests.
+3. Create or extend module in `internal/grpcclient/`: add methods + conversions for new service.
+4. Add config if new service (or extend existing `GRPCClientConfig` with service-specific settings).
+5. Register module in `internal/application.go` at infrastructure level (after database, before service).
+6. Inject module into HTTP (or other transport) that needs external data access via `IClient` interface.
+7. Update handlers to use new external service methods; handle nil client gracefully (return 503).
+8. Add tests: mock for handler tests, conversion tests, module lifecycle tests.
+9. Document in README.md with configuration and usage examples.
+
 ### HTTP Module
 - Optional; enabled via `http.enabled=true` in config.
 - Config struct: `config.HTTPConfig` (`http.*` keys), defaults in `config/init.go`.

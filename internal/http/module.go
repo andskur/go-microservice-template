@@ -14,6 +14,7 @@ import (
 	"github.com/justinas/alice"
 
 	"microservice-template/config"
+	"microservice-template/internal/grpcclient"
 	"microservice-template/internal/http/auth"
 	"microservice-template/internal/http/handlers"
 	"microservice-template/internal/http/middlewares"
@@ -25,19 +26,21 @@ import (
 
 // Module implements module.Module interface for the HTTP server.
 type Module struct {
-	config  *config.HTTPConfig
-	service service.IService
-	server  *httpserver.Server
-	api     *operations.MicroserviceTemplateAPIAPI
-	handler *http.Handler
-	auth    *auth.Auth
+	config     *config.HTTPConfig
+	service    service.IService
+	grpcClient grpcclient.IClient
+	server     *httpserver.Server
+	api        *operations.MicroserviceTemplateAPIAPI
+	handler    *http.Handler
+	auth       *auth.Auth
 }
 
 // NewModule creates a new HTTP module instance.
-func NewModule(cfg *config.HTTPConfig, svc service.IService) *Module {
+func NewModule(cfg *config.HTTPConfig, svc service.IService, grpcClient grpcclient.IClient) *Module {
 	return &Module{
-		config:  cfg,
-		service: svc,
+		config:     cfg,
+		service:    svc,
+		grpcClient: grpcClient,
 	}
 }
 
@@ -119,8 +122,8 @@ func (m *Module) initAPI() error {
 	// Configure auth
 	api.JwtAuth = m.auth.CheckAuth
 
-	// Register handlers
-	api.UsersGetUserByEmailHandler = handlers.NewGetUserByEmail(m.service)
+	// Register handlers - pass grpcClient for external service access
+	api.UsersGetUserByEmailHandler = handlers.NewGetUserByEmail(m.service, m.grpcClient)
 	api.HealthGetHealthHandler = handlers.NewHealth()
 
 	// TODO: Add more handlers as you expand the API

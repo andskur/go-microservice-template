@@ -79,7 +79,8 @@ The template includes configuration placeholders for common modules:
 | Repository | Database-backed persistence (wraps DB connection) | `database` | ✅ Implemented (enabled when `database.enabled` is true) |
 | Service | Business logic orchestrator (optional deps) | n/a | ✅ Implemented (always registered; repository optional) |
 | HTTP | HTTP REST API server with Swagger/OpenAPI | `http` | ✅ Implemented (enabled when `http.enabled` is true) |
-| gRPC | gRPC API server | `grpc` | ✅ Implemented (enabled when `grpc.enabled` is true) |
+| gRPC Server | gRPC API server | `grpc` | ✅ Implemented (enabled when `grpc.enabled` is true) |
+| gRPC Client | External service client for microservice communication | `grpc_client` | ✅ Implemented (enabled when `grpc_client.enabled` is true) |
 
 ### Enabling Modules
 
@@ -218,6 +219,77 @@ make test-http           # Run HTTP module tests
 - `http.rate_limit.requests_per_second` - Rate limit (default: 100)
 
 For detailed HTTP development guide including adding new endpoints, authentication, and middleware, see [docs/HTTP_SWAGGER_GUIDE.md](./docs/HTTP_SWAGGER_GUIDE.md).
+
+### gRPC Client Setup
+
+The gRPC client module enables communication with external gRPC microservices. HTTP handlers use the client to fetch data from external services, making this template ideal for gateway/BFF (Backend for Frontend) patterns.
+
+**Architecture Overview:**
+- **Hybrid approach**: Pure gRPC client in `pkg/userservice/` (proto types only) + module wrapper in `internal/grpcclient/` (conversions + lifecycle)
+- **HTTP integration**: HTTP handlers receive grpcClient as dependency and use it to fetch from external services
+- **Service independence**: Service layer remains focused on local business logic only
+
+**Enable gRPC client:**
+```bash
+export GRPC_CLIENT_ENABLED=true
+export GRPC_CLIENT_ADDRESS="user-service:9090"
+export GRPC_CLIENT_TIMEOUT="30s"
+
+# Run the service
+make run
+```
+
+**Configuration options:**
+- `grpc_client.enabled` - Enable/disable client (default: false)
+- `grpc_client.address` - External service address (default: "localhost:9090")
+- `grpc_client.timeout` - Request timeout (default: "30s")
+- `grpc_client.keep_alive.time` - Keep-alive ping interval (default: "10s")
+- `grpc_client.keep_alive.timeout` - Keep-alive timeout (default: "1s")
+- `grpc_client.keep_alive.permit_without_stream` - Send pings without streams (default: true)
+
+**Handler integration patterns:**
+
+The template demonstrates fetching from external service only. Alternative patterns are documented in handler code:
+
+```go
+// Pattern 1: External only (current implementation)
+user, err := h.grpcClient.GetUserByEmail(ctx, email)
+
+// Pattern 2: Local database only (commented alternative)
+// user, err := h.service.GetUserByEmail(ctx, email)
+
+// Pattern 3: External with local fallback (commented alternative)
+// user, err := h.grpcClient.GetUserByEmail(ctx, email)
+// if err != nil {
+//     user, err = h.service.GetUserByEmail(ctx, email)
+// }
+
+// Pattern 4: Aggregate from both sources (commented alternative)
+// externalUser, _ := h.grpcClient.GetUserByEmail(ctx, email)
+// localUser, _ := h.service.GetUserByEmail(ctx, email)
+// user = mergeUsers(externalUser, localUser)
+```
+
+**Test endpoints:**
+```bash
+# Requires external user-service running on configured address
+export HTTP_ENABLED=true
+export HTTP_MOCK_AUTH=true
+export GRPC_CLIENT_ENABLED=true
+export GRPC_CLIENT_ADDRESS="user-service:9090"
+
+make run
+
+# Test the endpoint
+curl -H "Authorization: Bearer test-token" \
+  "http://localhost:8080/users?email=test@example.com"
+```
+
+**Error handling:**
+- Returns **503 Service Unavailable** when grpcClient is not configured
+- Maps gRPC errors: `not found` → 404, `invalid input` → 400, `unavailable` → 503
+
+For detailed gRPC development guide including adding new services and proto definitions, see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md).
 
 ### Adding Custom Modules
 

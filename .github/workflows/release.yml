@@ -43,6 +43,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Install proto tools
+        run: make proto-install
+
+      - name: Generate protos
+        run: make proto-generate-all
+
       - name: Install golangci-lint
         run: make lint-install
 

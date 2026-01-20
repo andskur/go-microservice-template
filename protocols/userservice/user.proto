@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package userservice;
+
+option go_package = "microservice-template/protocols/userservice";
+
+// UserService provides user management operations
+service UserService {
+  // GetUserByEmail retrieves a user by email address
+  rpc GetUserByEmail(EmailRequest) returns (User);
+  
+  // GetUserByUUID retrieves a user by UUID
+  rpc GetUserByUUID(UUIDRequest) returns (User);
+  
+  // CreateUser creates a new user
+  rpc CreateUser(CreateUserRequest) returns (User);
+}
+
+// User represents a user entity
+message User {
+  bytes uuid = 1;           // User UUID (16 bytes)
+  string email = 2;         // Email address
+  string name = 3;          // Full name
+  UserStatus status = 4;    // User status
+  int64 created_at = 5;     // Unix timestamp (seconds)
+  int64 updated_at = 6;     // Unix timestamp (seconds)
+}
+
+// UserStatus represents user account status
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;  // Default/unknown
+  USER_STATUS_ACTIVE = 1;       // Active user
+  USER_STATUS_DELETED = 2;      // Deleted/deactivated user
+}
+
+// EmailRequest for GetUserByEmail
+message EmailRequest {
+  string email = 1;
+}
+
+// UUIDRequest for GetUserByUUID
+message UUIDRequest {
+  bytes uuid = 1;  // 16 bytes UUID
+}
+
+// CreateUserRequest for CreateUser
+message CreateUserRequest {
+  string email = 1;
+  string name = 2;
+  UserStatus status = 3;
+}

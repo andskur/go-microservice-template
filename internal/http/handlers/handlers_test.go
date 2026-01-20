@@ -9,6 +9,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/gofrs/uuid"
 
+	"microservice-template/internal/grpcclient/mock"
 	"microservice-template/internal/http/models"
 	"microservice-template/internal/http/server/operations/users"
 	domainmodels "microservice-template/internal/models"
@@ -37,7 +38,7 @@ func (m *mockService) CreateUser(ctx context.Context, user *domainmodels.User) e
 
 func TestNewGetUserByEmail(t *testing.T) {
 	svc := &mockService{}
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, nil)
 
 	if handler == nil {
 		t.Fatal("NewGetUserByEmail returned nil")
@@ -49,7 +50,6 @@ func TestNewGetUserByEmail(t *testing.T) {
 }
 
 func TestGetUserByEmail_Success(t *testing.T) {
-	// Setup mock service
 	userUUID := uuid.Must(uuid.NewV4())
 	expectedUser := &domainmodels.User{
 		UUID:   userUUID,
@@ -58,8 +58,9 @@ func TestGetUserByEmail_Success(t *testing.T) {
 		Status: domainmodels.UserActive,
 	}
 
-	svc := &mockService{
-		getUserByEmailFunc: func(_ context.Context, email string) (*domainmodels.User, error) {
+	svc := &mockService{}
+	grpcClient := &mock.GRPCClient{
+		GetUserByEmailFunc: func(_ context.Context, email string) (*domainmodels.User, error) {
 			if email != "test@example.com" {
 				t.Errorf("unexpected email: %s", email)
 			}
@@ -67,7 +68,7 @@ func TestGetUserByEmail_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, grpcClient)
 
 	// Create params
 	email := strfmt.Email("test@example.com")
@@ -122,7 +123,7 @@ func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, nil)
 
 	// Create params with empty email
 	params := users.GetUserByEmailParams{
@@ -144,13 +145,14 @@ func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 }
 
 func TestGetUserByEmail_NotFound(t *testing.T) {
-	svc := &mockService{
-		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
-			return nil, service.ErrNotFound
+	svc := &mockService{}
+	grpcClient := &mock.GRPCClient{
+		GetUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
+			return nil, fmt.Errorf("user not found: some error")
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, grpcClient)
 
 	email := strfmt.Email("notfound@example.com")
 	params := users.GetUserByEmailParams{
@@ -172,13 +174,14 @@ func TestGetUserByEmail_NotFound(t *testing.T) {
 }
 
 func TestGetUserByEmail_InvalidInput(t *testing.T) {
-	svc := &mockService{
-		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
-			return nil, service.ErrInvalidInput
+	svc := &mockService{}
+	grpcClient := &mock.GRPCClient{
+		GetUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
+			return nil, fmt.Errorf("invalid input: bad email format")
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, grpcClient)
 
 	email := strfmt.Email("invalid")
 	params := users.GetUserByEmailParams{
@@ -206,7 +209,7 @@ func TestGetUserByEmail_RepositoryUnavailable(t *testing.T) {
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, nil)
 
 	email := strfmt.Email("test@example.com")
 	params := users.GetUserByEmailParams{
@@ -228,13 +231,14 @@ func TestGetUserByEmail_RepositoryUnavailable(t *testing.T) {
 }
 
 func TestGetUserByEmail_InternalError(t *testing.T) {
-	svc := &mockService{
-		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
+	svc := &mockService{}
+	grpcClient := &mock.GRPCClient{
+		GetUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
 			return nil, fmt.Errorf("unexpected error")
 		},
 	}
 
-	handler := NewGetUserByEmail(svc)
+	handler := NewGetUserByEmail(svc, grpcClient)
 
 	email := strfmt.Email("test@example.com")
 	params := users.GetUserByEmailParams{
@@ -251,6 +255,30 @@ func TestGetUserByEmail_InternalError(t *testing.T) {
 	}
 
 	if errorResponse.Payload == nil {
+		t.Fatal("error payload is nil")
+	}
+}
+
+func TestGetUserByEmail_GRPCClientNil(t *testing.T) {
+	svc := &mockService{}
+	// Pass nil for grpcClient to test the nil check
+	handler := NewGetUserByEmail(svc, nil)
+
+	email := strfmt.Email("test@example.com")
+	params := users.GetUserByEmailParams{
+		Email: email,
+	}
+
+	principal := &models.User{}
+	responder := handler.Handle(params, principal)
+
+	// Should return service unavailable when grpcClient is nil
+	unavailableResponse, ok := responder.(*users.GetUserByEmailServiceUnavailable)
+	if !ok {
+		t.Fatalf("expected *users.GetUserByEmailServiceUnavailable, got %T", responder)
+	}
+
+	if unavailableResponse.Payload == nil {
 		t.Fatal("error payload is nil")
 	}
 }
