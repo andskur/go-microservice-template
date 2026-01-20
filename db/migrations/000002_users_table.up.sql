@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS users
         CONSTRAINT user_uuid_pkey PRIMARY KEY,
     email text,
     name text,
-    avatar text,
     status user_status NOT NULL DEFAULT 'active',
     created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP

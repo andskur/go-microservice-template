@@ -47,24 +47,11 @@ func NewApplication() (app *App, err error) {
 
 // Init initializes the application and all registered modules.
 func (app *App) Init() error {
-	ctx := context.Background()
-
-	// Register modules based on configuration
+	// Register and initialize modules based on configuration
+	// Note: registerModules handles both registration and initialization
+	// in the correct order to ensure dependencies are available
 	if err := app.registerModules(); err != nil {
 		return fmt.Errorf("register modules: %w", err)
-	}
-
-	// Initialize all registered modules
-	if err := app.modules.InitAll(ctx); err != nil {
-		return fmt.Errorf("init modules: %w", err)
-	}
-
-	// Capture service instance from service module (always registered)
-	for _, mod := range app.modules.List() {
-		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
-			app.svc = svcMod.Service()
-			break
-		}
 	}
 
 	return nil
@@ -83,8 +70,6 @@ func (app *App) registerModules() error {
 
 		repoModule = repository.NewModule(app.config.Database)
 		app.modules.Register(repoModule)
-	} else {
-		logger.Log().Info("database not enabled, repository module not registered")
 	}
 
 	// 2. Infrastructure: gRPC Client for external services (optional)
@@ -94,30 +79,42 @@ func (app *App) registerModules() error {
 
 		grpcClientModule = grpcclientmod.NewModule(app.config.GRPCClient)
 		app.modules.Register(grpcClientModule)
-	} else {
-		logger.Log().Info("grpc_client not enabled, grpc client module not registered")
 	}
 
 	// 3. Business logic: Service module is always registered; repository may be nil
 	logger.Log().Info("registering service module")
 
-	var repo repository.IRepository
+	// Pass repository module as provider; service will retrieve repository during Init
+	// (after repository module has been initialized).
+	// Explicitly pass nil to avoid typed nil interface gotcha.
+	var repoProvider service.RepositoryProvider
 	if repoModule != nil {
-		repo = repoModule.Repository()
+		repoProvider = repoModule
 	}
-
-	// Service module does NOT depend on grpcClient
-	// Service handles local business logic only
-	svcModule := service.NewModule(repo)
+	svcModule := service.NewModule(repoProvider)
 	app.modules.Register(svcModule)
 
-	// Capture service instance for downstream transports
-	for _, mod := range app.modules.List() {
-		if svcMod, ok := mod.(interface{ Service() service.IService }); ok {
-			app.svc = svcMod.Service()
-			break
+	// Initialize infrastructure and business logic modules first
+	// so we can retrieve the service instance for transport modules
+	ctx := context.Background()
+	if repoModule != nil {
+		if err := repoModule.Init(ctx); err != nil {
+			return fmt.Errorf("init repository module: %w", err)
 		}
 	}
+	if grpcClientModule != nil {
+		if err := grpcClientModule.Init(ctx); err != nil {
+			return fmt.Errorf("init grpc client module: %w", err)
+		}
+	}
+	if err := svcModule.Init(ctx); err != nil {
+		return fmt.Errorf("init service module: %w", err)
+	}
+
+	// Capture service instance after initialization
+	app.svc = svcModule.Service()
+
+	logger.Log().Info("infrastructure modules initialized successfully")
 
 	// 4. Transport: HTTP module (optional) - receives both service AND grpcClient
 	if app.config.HTTP != nil && app.config.HTTP.Enabled {
@@ -126,8 +123,11 @@ func (app *App) registerModules() error {
 		// Pass grpcClient to HTTP module (can be nil)
 		httpModule := httpmod.NewModule(app.config.HTTP, app.svc, grpcClientModule)
 		app.modules.Register(httpModule)
-	} else {
-		logger.Log().Info("http not enabled, http module not registered")
+
+		// Initialize HTTP module
+		if err := httpModule.Init(ctx); err != nil {
+			return fmt.Errorf("init http module: %w", err)
+		}
 	}
 
 	// 5. Transport: gRPC server module (optional)
@@ -136,11 +136,14 @@ func (app *App) registerModules() error {
 
 		grpcModule := grpcmod.NewModule(app.config.GRPC, app.svc)
 		app.modules.Register(grpcModule)
-	} else {
-		logger.Log().Info("grpc not enabled, grpc module not registered")
+
+		// Initialize gRPC module
+		if err := grpcModule.Init(ctx); err != nil {
+			return fmt.Errorf("init grpc module: %w", err)
+		}
 	}
 
-	logger.Log().Infof("registered %d modules", app.modules.Count())
+	logger.Log().Infof("registered and initialized %d modules", app.modules.Count())
 	return nil
 }
 

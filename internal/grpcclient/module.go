@@ -157,9 +157,8 @@ func (m *Module) GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*models
 func (m *Module) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
 	// Convert domain user to proto create request
 	req := &proto.CreateUserRequest{
-		Email:  user.Email,
-		Name:   user.Name,
-		Status: UserStatusToProto(user.Status),
+		Email: user.Email,
+		Name:  user.Name,
 	}
 
 	pbUser, err := m.client.CreateUser(ctx, req)

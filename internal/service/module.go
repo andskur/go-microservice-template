@@ -8,18 +8,24 @@ import (
 	"microservice-template/pkg/logger"
 )
 
+// RepositoryProvider provides access to a repository instance.
+// This allows the repository to be retrieved after it's been initialized.
+type RepositoryProvider interface {
+	Repository() repository.IRepository
+}
+
 // Module implements module.Module interface for the service layer.
 // It wires the business logic service with optional dependencies such as repository.
 type Module struct {
-	repository repository.IRepository
-	service    IService
+	repoProvider RepositoryProvider
+	service      IService
 }
 
 // NewModule creates a new service module instance.
-// repository can be nil when the database module is not enabled.
-func NewModule(repo repository.IRepository) *Module {
+// repoProvider can be nil when the database module is not enabled.
+func NewModule(repoProvider RepositoryProvider) *Module {
 	return &Module{
-		repository: repo,
+		repoProvider: repoProvider,
 	}
 }
 
@@ -32,9 +38,15 @@ func (m *Module) Name() string {
 func (m *Module) Init(_ context.Context) error {
 	logger.Log().Infof("initializing %s module", m.Name())
 
-	m.service = NewService(m.repository)
+	// Retrieve repository from provider (after repository module has been initialized)
+	var repo repository.IRepository
+	if m.repoProvider != nil {
+		repo = m.repoProvider.Repository()
+	}
 
-	if m.repository == nil {
+	m.service = NewService(repo)
+
+	if repo == nil {
 		logger.Log().Warn("service initialized without repository; database operations will be unavailable")
 	} else {
 		logger.Log().Info("service initialized with repository")

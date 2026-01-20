@@ -147,21 +147,36 @@ In `internal/application.go`, add to `registerModules()` in dependency order. Ex
 ```go
 func (app *App) registerModules() error {
     // Infrastructure first: repository (enabled only when database is enabled)
-    var repoMod *repository.Module
+    var repoModule *repository.Module
     if app.config.Database != nil && app.config.Database.Enabled {
-        repoMod = repository.NewModule(app.config.Database)
-        app.modules.Register(repoMod)
+        repoModule = repository.NewModule(app.config.Database)
+        app.modules.Register(repoModule)
     }
 
     // Business logic: service module always registers; repository is optional
-    var repo repository.IRepository
-    if repoMod != nil {
-        repo = repoMod.Repository()
+    // Use provider pattern to defer repository retrieval until after Init
+    var repoProvider service.RepositoryProvider
+    if repoModule != nil {
+        repoProvider = repoModule  // Module implements RepositoryProvider interface
     }
-    svcMod := service.NewModule(repo)
-    app.modules.Register(svcMod)
+    svcModule := service.NewModule(repoProvider)
+    app.modules.Register(svcModule)
 
-    // Add more modules (HTTP, gRPC, queues) after business logic
+    // Initialize infrastructure and business logic modules
+    ctx := context.Background()
+    if repoModule != nil {
+        if err := repoModule.Init(ctx); err != nil {
+            return fmt.Errorf("init repository module: %w", err)
+        }
+    }
+    if err := svcModule.Init(ctx); err != nil {
+        return fmt.Errorf("init service module: %w", err)
+    }
+
+    // Capture service instance for transport modules
+    app.svc = svcModule.Service()
+
+    // Add transport modules (HTTP, gRPC) after business logic is initialized
 
     logger.Log().Infof("registered %d modules", app.modules.Count())
     return nil
@@ -170,15 +185,17 @@ func (app *App) registerModules() error {
 
 Service module guidance:
 - Service is always registered.
-- Dependencies (repository, cache, events, etc.) are injected explicitly and may be nil.
+- Dependencies (repository, cache, events, etc.) use provider pattern when they need to be retrieved after Init.
+- Service modules retrieve actual dependencies during their Init() method (after providers have initialized).
 - Service methods should handle missing dependencies gracefully (return clear errors).
 
 ### Step 4: Handle Module Dependencies
 
 Inject dependencies explicitly via constructors; avoid global lookups. Dependencies may be optional—if so, accept nil and handle gracefully.
 
+**Simple dependency (initialized before dependent):**
 ```go
-// Module B depends on Module A
+// Module B depends on Module A (A is already initialized)
 func NewModuleB(cfg *config.ModuleBConfig, moduleA *modulea.Module) *ModuleB {
     return &ModuleB{
         config: cfg,
@@ -187,34 +204,83 @@ func NewModuleB(cfg *config.ModuleBConfig, moduleA *modulea.Module) *ModuleB {
 }
 ```
 
+**Provider pattern (for dependencies initialized at same level):**
+
+When a module needs access to another module's resources that are only available after Init, use the provider pattern:
+
+```go
+// Define provider interface in dependent module
+package service
+
+type RepositoryProvider interface {
+    Repository() repository.IRepository
+}
+
+// Module accepts provider instead of direct dependency
+type Module struct {
+    repoProvider RepositoryProvider
+    service      IService
+}
+
+func NewModule(repoProvider RepositoryProvider) *Module {
+    return &Module{
+        repoProvider: repoProvider,
+    }
+}
+
+// Retrieve actual dependency during Init (after provider has initialized)
+func (m *Module) Init(ctx context.Context) error {
+    var repo repository.IRepository
+    if m.repoProvider != nil {
+        repo = m.repoProvider.Repository()
+    }
+    m.service = NewService(repo)
+    return nil
+}
+```
+
 Register in dependency order in `application.go`:
 
 ```go
 func (app *App) registerModules() error {
-    var modA *modulea.Module
+    var repoModule *repository.Module
 
-    // Register Module A first (dependency)
-    if app.config.ModuleA != nil && app.config.ModuleA.Enabled {
-        modA = modulea.NewModule(app.config.ModuleA)
-        app.modules.Register(modA)
+    // 1. Register repository module (infrastructure)
+    if app.config.Database != nil && app.config.Database.Enabled {
+        repoModule = repository.NewModule(app.config.Database)
+        app.modules.Register(repoModule)
     }
 
-    // Register Module B (depends on A); pass nil if A not enabled
-    var depA *modulea.Module
-    if modA != nil {
-        depA = modA
+    // 2. Register service with repository provider
+    var repoProvider service.RepositoryProvider
+    if repoModule != nil {
+        repoProvider = repoModule  // repoModule implements RepositoryProvider
     }
-    modB := moduleb.NewModule(app.config.ModuleB, depA)
-    app.modules.Register(modB)
+    svcModule := service.NewModule(repoProvider)
+    app.modules.Register(svcModule)
+
+    // 3. Initialize modules in order (provider before dependent)
+    ctx := context.Background()
+    if repoModule != nil {
+        if err := repoModule.Init(ctx); err != nil {
+            return fmt.Errorf("init repository: %w", err)
+        }
+    }
+    if err := svcModule.Init(ctx); err != nil {
+        return fmt.Errorf("init service: %w", err)
+    }
 
     return nil
 }
 ```
 
 Guidance:
+- Use **direct injection** for dependencies that are fully initialized before the dependent module is created.
+- Use **provider pattern** when dependencies are initialized at the same level (both are infrastructure or both are business logic).
 - Keep constructor injection explicit and typed.
 - If a dependency is optional, document the behavior when nil (e.g., service returns `repository not available` errors when DB is disabled).
 - Avoid service locators or global registries; pass what you need.
+- Always initialize providers before dependents call their methods.
 
 ## Best Practices
 
@@ -229,9 +295,11 @@ func (m *Module) Init(ctx context.Context) error {
 ```
 
 ### 2. Optional Dependencies
-- Accept optional dependencies as constructor params; allow nil.
+- Accept optional dependencies as constructor params (direct injection or provider interface); allow nil.
+- Use **provider pattern** when the dependency's resources are only available after Init (e.g., repository from database module).
+- Retrieve actual dependencies during Init() by calling provider methods (after providers have been initialized).
 - Clearly document and handle behavior when a dependency is missing (return explicit errors, not panics).
-- Example: the service module always registers; when repository is nil (database disabled), methods return `repository not available` errors.
+- Example: the service module always registers; it uses a RepositoryProvider to retrieve the repository after initialization. When repository is nil (database disabled), service methods return `repository not available` errors.
 
 ### 3. Dependency Order
 - Register infrastructure before business logic; business logic before transports.
@@ -1334,21 +1402,42 @@ func (app *App) registerModules() error {
         app.modules.Register(grpcClientModule)
     }
     
-    // 3. Business logic: Service (no grpcClient dependency)
-    var repo repository.IRepository
+    // 3. Business logic: Service (uses repository provider pattern)
+    var repoProvider service.RepositoryProvider
     if repoModule != nil {
-        repo = repoModule.Repository()
+        repoProvider = repoModule  // repoModule implements RepositoryProvider
     }
-    svcModule := service.NewModule(repo)
+    svcModule := service.NewModule(repoProvider)
     app.modules.Register(svcModule)
     
-    // Capture service
+    // Initialize infrastructure and business logic modules
+    ctx := context.Background()
+    if repoModule != nil {
+        if err := repoModule.Init(ctx); err != nil {
+            return fmt.Errorf("init repository module: %w", err)
+        }
+    }
+    if grpcClientModule != nil {
+        if err := grpcClientModule.Init(ctx); err != nil {
+            return fmt.Errorf("init grpc client module: %w", err)
+        }
+    }
+    if err := svcModule.Init(ctx); err != nil {
+        return fmt.Errorf("init service module: %w", err)
+    }
+    
+    // Capture service instance after initialization
     app.svc = svcModule.Service()
     
     // 4. Transport: HTTP (receives both service and grpcClient)
     if app.config.HTTP != nil && app.config.HTTP.Enabled {
         httpModule := httpmod.NewModule(app.config.HTTP, app.svc, grpcClientModule)
         app.modules.Register(httpModule)
+        
+        // Initialize HTTP module
+        if err := httpModule.Init(ctx); err != nil {
+            return fmt.Errorf("init http module: %w", err)
+        }
     }
     
     return nil

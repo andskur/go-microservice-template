@@ -32,7 +32,11 @@ func (m *Module) Name() string {
 
 // Init initializes the repository module and establishes database connection.
 func (m *Module) Init(_ context.Context) error {
-	logger.Log().Infof("initializing %s module with driver: %s", m.Name(), m.config.Driver)
+	logger.Log().Infof("initializing %s module with driver: %s on %s:%d with user %s", m.Name(), m.config.Driver, m.config.Host, m.config.Port, m.config.User)
+
+	fmt.Println(m.config.User)
+	fmt.Println(m.config.Password)
+	fmt.Println(m.config.Name)
 
 	db := pg.Connect(&pg.Options{
 		Addr:         fmt.Sprintf("%s:%d", m.config.Host, m.config.Port),
@@ -45,6 +49,10 @@ func (m *Module) Init(_ context.Context) error {
 
 	m.db = db
 	m.repo = NewPostgresRepository(db)
+
+	if err := m.HealthCheck(context.Background()); err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
 
 	logger.Log().Infof("%s module initialized successfully", m.Name())
 	return nil

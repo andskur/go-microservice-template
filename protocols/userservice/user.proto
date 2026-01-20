@@ -47,5 +47,4 @@ message UUIDRequest {
 message CreateUserRequest {
   string email = 1;
   string name = 2;
-  UserStatus status = 3;
 }

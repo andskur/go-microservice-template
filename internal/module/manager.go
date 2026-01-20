@@ -28,7 +28,6 @@ func (m *Manager) Register(module Module) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	logger.Log().Infof("registering module: %s", module.Name())
 	m.modules = append(m.modules, module)
 }
 
@@ -39,7 +38,6 @@ func (m *Manager) InitAll(ctx context.Context) error {
 	defer m.mu.RUnlock()
 
 	for _, mod := range m.modules {
-		logger.Log().Infof("initializing module: %s", mod.Name())
 		if err := mod.Init(ctx); err != nil {
 			return fmt.Errorf("failed to init module %s: %w", mod.Name(), err)
 		}
@@ -78,7 +76,6 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	// Stop in reverse order for proper cleanup (LIFO)
 	for i := len(m.modules) - 1; i >= 0; i-- {
 		mod := m.modules[i]
-		logger.Log().Infof("stopping module: %s", mod.Name())
 
 		if err := mod.Stop(ctx); err != nil {
 			logger.Log().Errorf("failed to stop module %s: %v", mod.Name(), err)

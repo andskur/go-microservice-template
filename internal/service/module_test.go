@@ -19,11 +19,21 @@ func (m *moduleMockRepository) UserBy(_ *models.User, _ repository.UserGetter) e
 	return nil
 }
 
+// mockRepositoryProvider wraps a repository for testing.
+type mockRepositoryProvider struct {
+	repo repository.IRepository
+}
+
+func (m *mockRepositoryProvider) Repository() repository.IRepository {
+	return m.repo
+}
+
 func TestModule_Lifecycle_WithRepository(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &moduleMockRepository{}
-	mod := NewModule(repo)
+	provider := &mockRepositoryProvider{repo: repo}
+	mod := NewModule(provider)
 
 	if err := mod.Init(ctx); err != nil {
 		t.Fatalf("Init failed: %v", err)
