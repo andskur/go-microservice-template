@@ -62,6 +62,8 @@ func (app *App) Init() error {
 // 1. Infrastructure (database, cache, queue).
 // 2. Business logic (repositories, services).
 // 3. Transport (http, grpc).
+//
+//nolint:gocyclo // should decompose later
 func (app *App) registerModules() error {
 	// 1. Infrastructure: Repository (database-backed) is optional
 	var repoModule *repository.Module
