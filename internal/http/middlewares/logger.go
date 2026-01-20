@@ -7,7 +7,7 @@ import (
 	"microservice-template/pkg/logger"
 )
 
-// responseWriter wraps http.ResponseWriter to capture status code
+// responseWriter wraps http.ResponseWriter to capture status code.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -22,7 +22,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// Logger middleware logs HTTP requests and responses
+// Logger middleware logs HTTP requests and responses.
 func Logger() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +43,11 @@ func Logger() func(http.Handler) http.Handler {
 				wrapped.statusCode,
 				duration,
 			)
+
+			// Propagate captured status code to original ResponseWriter when wrapped differs.
+			if wrapped.ResponseWriter != w && wrapped.statusCode != 0 {
+				w.WriteHeader(wrapped.statusCode)
+			}
 		})
 	}
 }

@@ -9,14 +9,23 @@ import (
 	domainmodels "microservice-template/internal/models"
 )
 
-// mockService is a mock implementation of service.IService for testing
-type mockService struct{}
+// mockService is a mock implementation of service.IService for testing.
+type mockService struct {
+	createUserFunc     func(ctx context.Context, user *domainmodels.User) error
+	getUserByEmailFunc func(ctx context.Context, email string) (*domainmodels.User, error)
+}
 
-func (m *mockService) CreateUser(ctx context.Context, user *domainmodels.User) error {
+func (m *mockService) CreateUser(_ context.Context, user *domainmodels.User) error {
+	if m.createUserFunc != nil {
+		return m.createUserFunc(context.Background(), user)
+	}
 	return nil
 }
 
-func (m *mockService) GetUserByEmail(ctx context.Context, email string) (*domainmodels.User, error) {
+func (m *mockService) GetUserByEmail(_ context.Context, email string) (*domainmodels.User, error) {
+	if m.getUserByEmailFunc != nil {
+		return m.getUserByEmailFunc(context.Background(), email)
+	}
 	return nil, nil
 }
 

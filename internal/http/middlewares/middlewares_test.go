@@ -11,7 +11,7 @@ import (
 
 func TestRecovery(t *testing.T) {
 	// Create a handler that panics
-	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	panicHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("test panic")
 	})
 
@@ -43,7 +43,7 @@ func TestRecovery(t *testing.T) {
 
 func TestRecovery_NoError(t *testing.T) {
 	// Create a normal handler
-	normalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	normalHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("success"))
 	})
@@ -69,7 +69,7 @@ func TestRecovery_NoError(t *testing.T) {
 
 func TestLogger(t *testing.T) {
 	// Create a test handler
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(10 * time.Millisecond) // Simulate processing time
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("logged"))
@@ -98,18 +98,20 @@ func TestLogger_CapturesStatusCode(t *testing.T) {
 	tests := []struct {
 		name       string
 		statusCode int
+		statusFunc func(http.ResponseWriter)
 	}{
-		{"OK", http.StatusOK},
-		{"Created", http.StatusCreated},
-		{"BadRequest", http.StatusBadRequest},
-		{"NotFound", http.StatusNotFound},
-		{"InternalServerError", http.StatusInternalServerError},
+		{"OK", http.StatusOK, func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }},
+		{"Created", http.StatusCreated, func(w http.ResponseWriter) { w.WriteHeader(http.StatusCreated) }},
+		{"BadRequest", http.StatusBadRequest, func(w http.ResponseWriter) { w.WriteHeader(http.StatusBadRequest) }},
+		{"NotFound", http.StatusNotFound, func(w http.ResponseWriter) { w.WriteHeader(http.StatusNotFound) }},
+		{"InternalServerError", http.StatusInternalServerError, func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				time.Sleep(10 * time.Millisecond)
+				tt.statusFunc(w)
 			})
 
 			handler := Logger()(testHandler)
@@ -126,7 +128,7 @@ func TestLogger_CapturesStatusCode(t *testing.T) {
 }
 
 func TestCors_Disabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -148,7 +150,7 @@ func TestCors_Disabled(t *testing.T) {
 }
 
 func TestCors_Enabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -182,7 +184,7 @@ func TestCors_Enabled(t *testing.T) {
 }
 
 func TestCors_WildcardOrigin(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -205,7 +207,7 @@ func TestCors_WildcardOrigin(t *testing.T) {
 }
 
 func TestCors_PreflightRequest(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -229,7 +231,7 @@ func TestCors_PreflightRequest(t *testing.T) {
 }
 
 func TestRateLimit_Disabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -252,7 +254,7 @@ func TestRateLimit_Disabled(t *testing.T) {
 }
 
 func TestRateLimit_Enabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -288,7 +290,7 @@ func TestRateLimit_Enabled(t *testing.T) {
 }
 
 func TestRateLimit_DifferentIPs(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 

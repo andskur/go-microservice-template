@@ -7,22 +7,31 @@ import (
 	"microservice-template/internal/models"
 )
 
-// mockService is a mock implementation of service.IService for testing
-type mockService struct{}
+// mockService is a mock implementation of service.IService for testing.
+type mockService struct {
+	CreateUserFunc     func(ctx context.Context, user *models.User) error
+	GetUserByEmailFunc func(ctx context.Context, email string) (*models.User, error)
+}
 
-func (m *mockService) CreateUser(ctx context.Context, user *models.User) error {
+func (m *mockService) CreateUser(_ context.Context, user *models.User) error {
+	if m.CreateUserFunc != nil {
+		return m.CreateUserFunc(context.Background(), user)
+	}
 	return nil
 }
 
-func (m *mockService) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (m *mockService) GetUserByEmail(_ context.Context, email string) (*models.User, error) {
+	if m.GetUserByEmailFunc != nil {
+		return m.GetUserByEmailFunc(context.Background(), email)
+	}
 	return nil, nil
 }
 
 func TestNewAuth(t *testing.T) {
 	tests := []struct {
 		name        string
-		mocked      bool
 		adminEmails []string
+		mocked      bool
 	}{
 		{
 			name:        "create auth with no admins",

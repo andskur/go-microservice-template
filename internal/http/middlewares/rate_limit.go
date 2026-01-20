@@ -9,7 +9,7 @@ import (
 	"microservice-template/config"
 )
 
-// RateLimit middleware implements token bucket rate limiting
+// RateLimit middleware implements token bucket rate limiting.
 func RateLimit(cfg *config.RateLimitConfig) func(http.Handler) http.Handler {
 	// Skip rate limiting if disabled
 	if cfg == nil || !cfg.Enabled {
@@ -20,8 +20,7 @@ func RateLimit(cfg *config.RateLimitConfig) func(http.Handler) http.Handler {
 
 	// Create a rate limiter per IP address
 	type client struct {
-		limiter  *rate.Limiter
-		lastSeen int64
+		limiter *rate.Limiter
 	}
 
 	var (

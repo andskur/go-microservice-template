@@ -1,14 +1,13 @@
 package middlewares
 
 import (
-	"fmt"
 	"net/http"
 	"runtime/debug"
 
 	"microservice-template/pkg/logger"
 )
 
-// Recovery middleware recovers from panics and returns a 500 Internal Server Error
+// Recovery middleware recovers from panics and returns a 500 Internal Server Error.
 func Recovery() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +19,8 @@ func Recovery() func(http.Handler) http.Handler {
 					// Return 500 error
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					_, _ = w.Write([]byte(fmt.Sprintf(`{"code":500,"message":"internal server error"}`)))
+					_, _ = w.Write([]byte(`{"code":500,"message":"internal server error"}`))
+
 				}
 			}()
 

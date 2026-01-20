@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/go-openapi/strfmt"
@@ -14,7 +15,7 @@ import (
 	"microservice-template/internal/service"
 )
 
-// mockService is a mock implementation of service.IService for testing
+// mockService is a mock implementation of service.IService for testing.
 type mockService struct {
 	getUserByEmailFunc func(ctx context.Context, email string) (*domainmodels.User, error)
 	createUserFunc     func(ctx context.Context, user *domainmodels.User) error
@@ -58,7 +59,7 @@ func TestGetUserByEmail_Success(t *testing.T) {
 	}
 
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
+		getUserByEmailFunc: func(_ context.Context, email string) (*domainmodels.User, error) {
 			if email != "test@example.com" {
 				t.Errorf("unexpected email: %s", email)
 			}
@@ -115,7 +116,7 @@ func TestGetUserByEmail_Success(t *testing.T) {
 
 func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
+		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
 			t.Error("service should not be called with empty email")
 			return nil, nil
 		},
@@ -144,7 +145,7 @@ func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 
 func TestGetUserByEmail_NotFound(t *testing.T) {
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
+		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
 			return nil, service.ErrNotFound
 		},
 	}
@@ -172,7 +173,7 @@ func TestGetUserByEmail_NotFound(t *testing.T) {
 
 func TestGetUserByEmail_InvalidInput(t *testing.T) {
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
+		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
 			return nil, service.ErrInvalidInput
 		},
 	}
@@ -200,7 +201,7 @@ func TestGetUserByEmail_InvalidInput(t *testing.T) {
 
 func TestGetUserByEmail_RepositoryUnavailable(t *testing.T) {
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
+		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
 			return nil, service.ErrRepositoryUnavailable
 		},
 	}
@@ -228,8 +229,8 @@ func TestGetUserByEmail_RepositoryUnavailable(t *testing.T) {
 
 func TestGetUserByEmail_InternalError(t *testing.T) {
 	svc := &mockService{
-		getUserByEmailFunc: func(ctx context.Context, email string) (*domainmodels.User, error) {
-			return nil, errors.New("internal database error")
+		getUserByEmailFunc: func(_ context.Context, _ string) (*domainmodels.User, error) {
+			return nil, fmt.Errorf("unexpected error")
 		},
 	}
 

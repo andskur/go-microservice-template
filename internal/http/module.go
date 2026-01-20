@@ -1,13 +1,16 @@
+// Package http implements the HTTP transport module.
 package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-openapi/loads"
-	"github.com/go-openapi/swag"
 	"github.com/justinas/alice"
 
 	"microservice-template/config"
@@ -20,7 +23,7 @@ import (
 	"microservice-template/pkg/logger"
 )
 
-// Module implements module.Module interface for the HTTP server
+// Module implements module.Module interface for the HTTP server.
 type Module struct {
 	config  *config.HTTPConfig
 	service service.IService
@@ -30,7 +33,7 @@ type Module struct {
 	auth    *auth.Auth
 }
 
-// NewModule creates a new HTTP module instance
+// NewModule creates a new HTTP module instance.
 func NewModule(cfg *config.HTTPConfig, svc service.IService) *Module {
 	return &Module{
 		config:  cfg,
@@ -38,13 +41,13 @@ func NewModule(cfg *config.HTTPConfig, svc service.IService) *Module {
 	}
 }
 
-// Name returns the module identifier
+// Name returns the module identifier.
 func (m *Module) Name() string {
 	return "http"
 }
 
-// Init initializes the HTTP module
-func (m *Module) Init(ctx context.Context) error {
+// Init initializes the HTTP module.
+func (m *Module) Init(_ context.Context) error {
 	logger.Log().Infof("initializing %s module", m.Name())
 
 	// Initialize auth
@@ -64,13 +67,13 @@ func (m *Module) Init(ctx context.Context) error {
 	return nil
 }
 
-// Start begins module operation
-func (m *Module) Start(ctx context.Context) error {
+// Start begins module operation.
+func (m *Module) Start(_ context.Context) error {
 	logger.Log().Infof("starting %s module", m.Name())
 
 	go func() {
 		logger.Log().Infof("HTTP server listening on %s", m.config.Address)
-		if err := m.server.Serve(); err != nil && err != http.ErrServerClosed {
+		if err := m.server.Serve(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Log().Errorf("HTTP server error: %v", err)
 		}
 	}()
@@ -78,8 +81,8 @@ func (m *Module) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully shuts down the module
-func (m *Module) Stop(ctx context.Context) error {
+// Stop gracefully shuts down the module.
+func (m *Module) Stop(_ context.Context) error {
 	logger.Log().Infof("stopping %s module", m.Name())
 
 	if m.server != nil {
@@ -92,14 +95,14 @@ func (m *Module) Stop(ctx context.Context) error {
 	return nil
 }
 
-// HealthCheck returns module health status
-func (m *Module) HealthCheck(ctx context.Context) error {
+// HealthCheck returns module health status.
+func (m *Module) HealthCheck(_ context.Context) error {
 	// HTTP module is healthy if server is running
 	// Could add a ping to actual server if needed
 	return nil
 }
 
-// initAPI initializes the API and wires handlers
+// initAPI initializes the API and wires handlers.
 func (m *Module) initAPI() error {
 	// Load swagger spec
 	swaggerSpec, err := loads.Analyzed(httpserver.SwaggerJSON, "")
@@ -140,16 +143,22 @@ func (m *Module) initAPI() error {
 	return nil
 }
 
-// initServer initializes the HTTP server
+// initServer initializes the HTTP server.
 func (m *Module) initServer() error {
 	// Create server instance
 	m.server = httpserver.NewServer(m.api)
 
 	// Parse host and port
-	host, port, err := swag.SplitHostPort(m.config.Address)
+	host, portStr, err := net.SplitHostPort(m.config.Address)
 	if err != nil {
 		return fmt.Errorf("parse address: %w", err)
 	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("parse port: %w", err)
+	}
+
 	m.server.Host = host
 	m.server.Port = port
 

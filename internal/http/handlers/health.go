@@ -12,16 +12,16 @@ import (
 	"microservice-template/pkg/version"
 )
 
-// NewHealth creates new Health handler
+// NewHealth creates new Health handler.
 func NewHealth() *Health {
 	return &Health{}
 }
 
-// Health handler checks service health
+// Health handler checks service health.
 type Health struct{}
 
-// Handle Health endpoint
-func (h *Health) Handle(params health.GetHealthParams) middleware.Responder {
+// Handle Health endpoint.
+func (h *Health) Handle(_ health.GetHealthParams) middleware.Responder {
 	// TODO: Add actual health checks here
 	// - Check database connectivity (if database module enabled)
 	// - Check external dependencies
@@ -44,7 +44,7 @@ func (h *Health) Handle(params health.GetHealthParams) middleware.Responder {
 	return health.NewGetHealthOK().WithPayload(healthResponse)
 }
 
-// HandleUnhealthy returns unhealthy status (for testing or when checks fail)
+// HandleUnhealthy returns unhealthy status (for testing or when checks fail).
 func (h *Health) HandleUnhealthy(message string) middleware.Responder {
 	code := int64(http.StatusServiceUnavailable)
 	return health.NewGetHealthServiceUnavailable().

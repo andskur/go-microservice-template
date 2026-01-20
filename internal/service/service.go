@@ -61,7 +61,7 @@ func (s *Service) CreateUser(_ context.Context, user *models.User) error {
 	// TODO: Apply business rules
 
 	if s.repository == nil {
-		return ErrRepositoryUnavailable
+		return fmt.Errorf("repository not available: %w", ErrRepositoryUnavailable)
 	}
 
 	if err := s.repository.CreateUser(user); err != nil {
@@ -86,7 +86,7 @@ func (s *Service) GetUserByEmail(_ context.Context, email string) (*models.User,
 	// TODO: Check cache first (when cache module is added)
 
 	if s.repository == nil {
-		return nil, ErrRepositoryUnavailable
+		return nil, fmt.Errorf("repository not available: %w", ErrRepositoryUnavailable)
 	}
 
 	user := &models.User{Email: email}

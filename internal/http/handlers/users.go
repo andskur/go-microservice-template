@@ -13,18 +13,18 @@ import (
 	"microservice-template/pkg/logger"
 )
 
-// NewGetUserByEmail creates new GetUserByEmail handler
+// NewGetUserByEmail creates new GetUserByEmail handler.
 func NewGetUserByEmail(svc service.IService) *GetUserByEmail {
 	return &GetUserByEmail{service: svc}
 }
 
-// GetUserByEmail handler retrieves a user by email address
+// GetUserByEmail handler retrieves a user by email address.
 type GetUserByEmail struct {
 	service service.IService
 }
 
-// Handle GetUserByEmail endpoint
-func (h *GetUserByEmail) Handle(params users.GetUserByEmailParams, principal *models.User) middleware.Responder {
+// Handle GetUserByEmail endpoint.
+func (h *GetUserByEmail) Handle(params users.GetUserByEmailParams, _ *models.User) middleware.Responder {
 	// Extract email from query parameter (convert from strfmt.Email to string)
 	email := string(params.Email)
 

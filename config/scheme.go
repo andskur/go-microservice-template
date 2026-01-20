@@ -14,30 +14,27 @@ type GRPCConfig struct {
 
 // HTTPConfig holds HTTP server settings.
 type HTTPConfig struct {
+	// Pointers first to reduce padding.
+	CORS       *CORSConfig       `mapstructure:"cors"`       // CORS settings
+	RateLimit  *RateLimitConfig  `mapstructure:"rate_limit"` // Rate limiting
+	Gatekeeper *GatekeeperConfig `mapstructure:"gatekeeper"` // Gatekeeper configuration (JWT validation service)
+
 	Address     string   `mapstructure:"address"`      // "host:port" format (e.g., "0.0.0.0:8080")
 	Timeout     string   `mapstructure:"timeout"`      // Request timeout (e.g., "30s")
 	SwaggerSpec string   `mapstructure:"swagger_spec"` // Path to swagger.yaml
-	Enabled     bool     `mapstructure:"enabled"`      // Enable HTTP module
-	MockAuth    bool     `mapstructure:"mock_auth"`    // Enable mock auth for testing (bypasses gatekeeper)
 	AdminEmails []string `mapstructure:"admin_emails"` // Admin user emails for role checking
 
-	// CORS settings
-	CORS *CORSConfig `mapstructure:"cors"`
-
-	// Rate limiting
-	RateLimit *RateLimitConfig `mapstructure:"rate_limit"`
-
-	// Gatekeeper configuration (JWT validation service)
-	Gatekeeper *GatekeeperConfig `mapstructure:"gatekeeper"`
+	Enabled  bool `mapstructure:"enabled"`   // Enable HTTP module
+	MockAuth bool `mapstructure:"mock_auth"` // Enable mock auth for testing (bypasses gatekeeper)
 }
 
 // CORSConfig holds CORS settings.
 type CORSConfig struct {
-	Enabled        bool     `mapstructure:"enabled"`         // Enable CORS middleware
 	AllowedOrigins []string `mapstructure:"allowed_origins"` // ["*"] or ["https://myapp.com"]
 	AllowedMethods []string `mapstructure:"allowed_methods"` // ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 	AllowedHeaders []string `mapstructure:"allowed_headers"` // ["*"] or specific headers
 	MaxAge         int      `mapstructure:"max_age"`         // Preflight cache duration in seconds
+	Enabled        bool     `mapstructure:"enabled"`         // Enable CORS middleware
 }
 
 // RateLimitConfig holds rate limiting settings.

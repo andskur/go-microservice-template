@@ -110,7 +110,10 @@ func TestUserFromAPI(t *testing.T) {
 	}
 
 	// Convert to domain model
-	domainUser := UserFromAPI(apiUser)
+	domainUser, err := UserFromAPI(apiUser)
+	if err != nil {
+		t.Fatalf("UserFromAPI returned error: %v", err)
+	}
 
 	// Verify conversion
 	if domainUser == nil {
@@ -146,7 +149,10 @@ func TestUserFromAPI_WithDeletedStatus(t *testing.T) {
 		Status: &status,
 	}
 
-	domainUser := UserFromAPI(apiUser)
+	domainUser, err := UserFromAPI(apiUser)
+	if err != nil {
+		t.Fatalf("UserFromAPI returned error: %v", err)
+	}
 
 	if domainUser == nil {
 		t.Fatal("UserFromAPI returned nil")
@@ -169,7 +175,10 @@ func TestUserFromAPI_WithInvalidUUID(t *testing.T) {
 		Status: &status,
 	}
 
-	domainUser := UserFromAPI(apiUser)
+	domainUser, err := UserFromAPI(apiUser)
+	if err != nil {
+		t.Fatalf("UserFromAPI returned error: %v", err)
+	}
 
 	if domainUser == nil {
 		t.Fatal("UserFromAPI returned nil")
@@ -194,7 +203,10 @@ func TestUserRoundTrip(t *testing.T) {
 
 	// Convert to API and back to domain
 	apiUser := UserToAPI(original)
-	converted := UserFromAPI(apiUser)
+	converted, err := UserFromAPI(apiUser)
+	if err != nil {
+		t.Fatalf("UserFromAPI returned error: %v", err)
+	}
 
 	// Verify round trip (note: timestamps are not included in FromAPI)
 	if converted.UUID.String() != original.UUID.String() {

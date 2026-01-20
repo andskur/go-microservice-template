@@ -1,3 +1,4 @@
+// Package middlewares contains HTTP middlewares.
 package middlewares
 
 import (
@@ -8,50 +9,39 @@ import (
 	"microservice-template/config"
 )
 
-// Cors middleware handles CORS (Cross-Origin Resource Sharing) headers
+// Cors middleware handles CORS (Cross-Origin Resource Sharing) headers.
 func Cors(cfg *config.CORSConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		if cfg == nil || !cfg.Enabled {
+			return next
+		}
+
+		allowedOrigins := buildOriginSet(cfg.AllowedOrigins)
+		allowedMethods := strings.Join(cfg.AllowedMethods, ", ")
+		allowedHeaders := strings.Join(cfg.AllowedHeaders, ", ")
+		maxAge := cfg.MaxAge
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip CORS if disabled
-			if cfg == nil || !cfg.Enabled {
-				next.ServeHTTP(w, r)
-				return
+			origin := r.Header.Get("Origin")
+
+			if origin != "" && originAllowed(origin, allowedOrigins) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			} else if allowedOrigins["*"] {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
 			}
 
-			// Set CORS headers
-			if len(cfg.AllowedOrigins) > 0 {
-				origin := r.Header.Get("Origin")
-				if origin != "" {
-					// Check if origin is allowed
-					allowed := false
-					for _, allowedOrigin := range cfg.AllowedOrigins {
-						if allowedOrigin == "*" || allowedOrigin == origin {
-							allowed = true
-							break
-						}
-					}
-
-					if allowed {
-						w.Header().Set("Access-Control-Allow-Origin", origin)
-					}
-				} else if len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*" {
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-				}
+			if allowedMethods != "" {
+				w.Header().Set("Access-Control-Allow-Methods", allowedMethods)
 			}
 
-			if len(cfg.AllowedMethods) > 0 {
-				w.Header().Set("Access-Control-Allow-Methods", strings.Join(cfg.AllowedMethods, ", "))
+			if allowedHeaders != "" {
+				w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
 			}
 
-			if len(cfg.AllowedHeaders) > 0 {
-				w.Header().Set("Access-Control-Allow-Headers", strings.Join(cfg.AllowedHeaders, ", "))
+			if maxAge > 0 {
+				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(maxAge))
 			}
 
-			if cfg.MaxAge > 0 {
-				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
-			}
-
-			// Handle preflight OPTIONS request
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -60,4 +50,19 @@ func Cors(cfg *config.CORSConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func buildOriginSet(origins []string) map[string]bool {
+	set := make(map[string]bool, len(origins))
+	for _, origin := range origins {
+		set[origin] = true
+	}
+	return set
+}
+
+func originAllowed(origin string, allowed map[string]bool) bool {
+	if allowed["*"] {
+		return true
+	}
+	return allowed[origin]
 }
