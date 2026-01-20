@@ -11,7 +11,8 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Show version template at runtime: `./microservice-template --version`.
 - `cmd/microservice-template.go`: entry; wires cobra root + serve, executes CLI.
 - Keep binary name driven by `APP` variable (`microservice-template`).
-- Rename project: `make rename NEW_NAME=my-service` (validates name, prompts, updates module/imports/Makefile/Dockerfile/docs/CLI).
+- Rename project: `make rename NEW_NAME=my-service` (validates name, updates module/imports/Makefile/Dockerfile/docs/CLI/swagger API struct; optional NEW_REMOTE for git remote).
+- After rename: run `make generate-all` (protos + swagger) before builds/tests to refresh generated code.
 - Rename validation: lowercase letters, numbers, hyphens, optional path segments (`my-service`, `github.com/org/my-service`).
 - After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
@@ -27,6 +28,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - For signal handling, use buffered channels and context where possible.
 - Keep tests hermetic; avoid network/filesystem unless tempdir.
 - Running single test example: `go test ./cmd/root -run TestInitializeConfig -count=1`.
+- Use `make test-with-gen` if tests depend on generated proto/swagger; use `make lint-with-gen` when lint should include generated types.
 
 ## Linting & formatting
 - Use `gofmt` on all Go files; do not hand-format.
@@ -399,4 +401,3 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Keep changes minimal and reversible.
 - Run lint/tests before submitting changes.
 - If adding tools or scripts to `scripts/`, document invocation and purpose in this file.
-

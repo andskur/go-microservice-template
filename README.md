@@ -13,6 +13,8 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - Version: `./microservice-template --version`.
 - Lint: `make lint` (golangci-lint).
 - Test: `make test` or single test `go test ./... -run TestName -count=1`.
+- Generate + test: `make test-with-gen` (runs proto + swagger generation first).
+- Generate + lint: `make lint-with-gen` (runs proto + swagger generation first).
 - gRPC tests: `make test-grpc` (runs gRPC package including integration).
 - HTTP tests: `make test-http` (runs HTTP package tests).
 - Coverage: `make test-coverage` (writes `coverage.out`).
@@ -23,7 +25,8 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 ### Renaming the project
 - Command: `make rename NEW_NAME=my-service` (required parameter).
 - Valid NEW_NAME: lowercase letters, numbers, hyphens, optional `/` segments (e.g., `my-service`, `github.com/yourorg/my-service`).
-- Updates: module path and imports, Makefile vars, entrypoint file, Cobra root `Use`, Dockerfile binary, README/AGENTS references, optional git remote.
+- Updates: module path and imports, Makefile vars, entrypoint file, Cobra root `Use`, swagger API struct name, Dockerfile binary, README/AGENTS references, optional git remote.
+- After rename regenerate generated code: `make generate-all` (or at least `make generate-api` + proto generation as needed).
 - Verify after rename: `go test ./...`, `make build`, `./<new-binary> --version`.
 
 ## Features
