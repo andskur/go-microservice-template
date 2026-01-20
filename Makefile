@@ -14,8 +14,8 @@ GITVER_PKG:=microservice-template/pkg/version
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-# set git related vars for versioning
-TAG 		:= $(shell git describe --abbrev=0 --tags)
+# set git related vars for versioning (tolerate repos without tags)
+TAG 		:= $(shell git describe --abbrev=0 --tags 2>/dev/null || true)
 COMMIT		:= $(shell git rev-parse HEAD)
 BRANCH		?= $(shell git rev-parse --abbrev-ref HEAD)
 REMOTE		:= $(shell git config --get remote.origin.url)
@@ -36,6 +36,7 @@ LDFLAGS += -X $(GITVER_PKG).CommitSHA=$(COMMIT)
 LDFLAGS += -X $(GITVER_PKG).CommitBranch=$(BRANCH)
 LDFLAGS += -X $(GITVER_PKG).OriginURL=$(REMOTE)
 LDFLAGS += -X $(GITVER_PKG).BuildDate=$(BUILD_DATE)
+LDFLAGS += -X $(GITVER_PKG).Release=$(RELEASE)
 
 # The all target runs the tidy, build, and test targets
 all: tidy build test

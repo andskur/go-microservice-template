@@ -34,6 +34,7 @@ var (
 	CommitBranch = unspecified
 	OriginURL    = unspecified
 	BuildDate    = unspecified
+	Release      = unspecified
 )
 
 const defaultTag = "v0.0.0"
@@ -50,16 +51,17 @@ type Version struct {
 }
 
 // NewVersion create new girt Version instance.
-func NewVersion() (ver *Version, err error) {
+func NewVersion() (*Version, error) {
 	var date time.Time
 
 	if BuildDate == "unspecified" {
 		date = time.Now()
 	} else {
-		date, err = time.Parse(dateLayout, BuildDate)
-		if err != nil {
-			return nil, fmt.Errorf("parse build date: %w", err)
+		parsedDate, parseErr := time.Parse(dateLayout, BuildDate)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse build date: %w", parseErr)
 		}
+		date = parsedDate
 	}
 
 	tag := CommitTag
@@ -67,7 +69,7 @@ func NewVersion() (ver *Version, err error) {
 		tag = defaultTag
 	}
 
-	ver = &Version{
+	ver := &Version{
 		Service: ServiceName,
 		Tag:     tag,
 		Commit:  CommitSHA,
@@ -76,8 +78,15 @@ func NewVersion() (ver *Version, err error) {
 		Date:    date,
 	}
 
-	err = ver.initTemplate()
-	return
+	if Release != unspecified {
+		ver.Tag = Release
+	}
+
+	if err := ver.initTemplate(); err != nil {
+		return nil, err
+	}
+
+	return ver, nil
 }
 
 // initTemplate initialize Version message from template.

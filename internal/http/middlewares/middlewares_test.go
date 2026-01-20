@@ -96,15 +96,15 @@ func TestLogger(t *testing.T) {
 
 func TestLogger_CapturesStatusCode(t *testing.T) {
 	tests := []struct {
+		statusFunc func(http.ResponseWriter)
 		name       string
 		statusCode int
-		statusFunc func(http.ResponseWriter)
 	}{
-		{"OK", http.StatusOK, func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }},
-		{"Created", http.StatusCreated, func(w http.ResponseWriter) { w.WriteHeader(http.StatusCreated) }},
-		{"BadRequest", http.StatusBadRequest, func(w http.ResponseWriter) { w.WriteHeader(http.StatusBadRequest) }},
-		{"NotFound", http.StatusNotFound, func(w http.ResponseWriter) { w.WriteHeader(http.StatusNotFound) }},
-		{"InternalServerError", http.StatusInternalServerError, func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) }},
+		{func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }, "OK", http.StatusOK},
+		{func(w http.ResponseWriter) { w.WriteHeader(http.StatusCreated) }, "Created", http.StatusCreated},
+		{func(w http.ResponseWriter) { w.WriteHeader(http.StatusBadRequest) }, "BadRequest", http.StatusBadRequest},
+		{func(w http.ResponseWriter) { w.WriteHeader(http.StatusNotFound) }, "NotFound", http.StatusNotFound},
+		{func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) }, "InternalServerError", http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
