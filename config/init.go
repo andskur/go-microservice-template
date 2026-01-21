@@ -50,7 +50,8 @@ func setDefaults() {
 
 	// HTTP module defaults
 	viper.SetDefault("http.enabled", false)
-	viper.SetDefault("http.address", "0.0.0.0:8080")
+	viper.SetDefault("http.host", "0.0.0.0")
+	viper.SetDefault("http.port", 8080)
 	viper.SetDefault("http.timeout", "30s")
 	viper.SetDefault("http.swagger_spec", "./api/swagger.yaml")
 	viper.SetDefault("http.mock_auth", false)

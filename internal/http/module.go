@@ -5,9 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-openapi/loads"
@@ -66,7 +64,7 @@ func (m *Module) Init(_ context.Context) error {
 		return fmt.Errorf("init server: %w", err)
 	}
 
-	logger.Log().Infof("HTTP server configured on %s", m.config.Address)
+	logger.Log().Infof("HTTP server configured on %s:%d", m.config.Host, m.config.Port)
 	return nil
 }
 
@@ -75,7 +73,7 @@ func (m *Module) Start(_ context.Context) error {
 	logger.Log().Infof("starting %s module", m.Name())
 
 	go func() {
-		logger.Log().Infof("HTTP server listening on %s", m.config.Address)
+		logger.Log().Infof("HTTP server listening on %s:%d", m.config.Host, m.config.Port)
 		if err := m.server.Serve(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Log().Errorf("HTTP server error: %v", err)
 		}
@@ -151,19 +149,16 @@ func (m *Module) initServer() error {
 	// Create server instance
 	m.server = httpserver.NewServer(m.api)
 
-	// Parse host and port
-	host, portStr, err := net.SplitHostPort(m.config.Address)
-	if err != nil {
-		return fmt.Errorf("parse address: %w", err)
+	if m.config.Host == "" {
+		return fmt.Errorf("http host is required")
 	}
 
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return fmt.Errorf("parse port: %w", err)
+	if m.config.Port <= 0 || m.config.Port > 65535 {
+		return fmt.Errorf("http port must be between 1 and 65535")
 	}
 
-	m.server.Host = host
-	m.server.Port = port
+	m.server.Host = m.config.Host
+	m.server.Port = m.config.Port
 
 	// Parse and set timeouts
 	timeout, err := time.ParseDuration(m.config.Timeout)

@@ -62,7 +62,7 @@ go-microservice-template/
 ├── scripts/                    # Automation scripts (rename)
 ├── .github/workflows/          # CI/CD pipelines
 ├── Dockerfile                  # Multi-stage container build
-├── docker-compose.yml          # Local stack (Postgres/Redis/app)
+├── docker-compose.yml          # Local stack (Postgres/app)
 ├── Makefile                    # Build/run/lint/test/proto/swagger targets
 ├── README.md, AGENTS.md        # Docs and guidelines
 └── go.mod, go.sum              # Dependencies
@@ -153,7 +153,7 @@ make migrate-drop         # Drop all tables (⚠️ DANGER - requires confirmati
 
 **Local development with Docker Compose:**
 ```bash
-# Start Postgres, Redis, and auto-run migrations (uses db/migrations)
+# Start Postgres and auto-run migrations (uses db/migrations)
 make compose-up
 
 # Stop services
@@ -186,6 +186,7 @@ make generate-api
 **Enable HTTP module:**
 ```bash
 export HTTP_ENABLED=true
+export HTTP_HOST=0.0.0.0
 export HTTP_PORT=8080
 export HTTP_MOCK_AUTH=true  # For local development (bypasses JWT validation)
 
@@ -214,12 +215,12 @@ make test-http           # Run HTTP module tests
 
 **Configuration options:**
 - `http.enabled` - Enable/disable HTTP server (default: false)
-- `http.host` - Server host (default: localhost)
+- `http.host` - Server host (default: 0.0.0.0)
 - `http.port` - Server port (default: 8080)
 - `http.mock_auth` - Use mock authentication for development (default: false)
 - `http.cors.enabled` - Enable CORS (default: true)
-- `http.rate_limit.enabled` - Enable rate limiting (default: true)
-- `http.rate_limit.requests_per_second` - Rate limit (default: 100)
+- `http.rate_limit.enabled` - Enable rate limiting (default: false)
+- `http.rate_limit.requests_per_sec` - Rate limit (default: 100.0)
 
 For detailed HTTP development guide including adding new endpoints, authentication, and middleware, see [docs/HTTP_SWAGGER_GUIDE.md](./docs/HTTP_SWAGGER_GUIDE.md).
 
@@ -302,31 +303,6 @@ See [Module Development Guide](./docs/MODULE_DEVELOPMENT.md) for creating custom
 - **Dependency injection**: Modules depend on each other via constructor injection (explicit; no service locator)
 - **Configuration-driven**: Enable/disable modules via YAML/env vars (repository depends on `database.enabled`; service always registers)
 - **Graceful shutdown**: Automatic cleanup in reverse registration order
-
-## CLI
-- Root command name: `microservice-template`.
-- Subcommands: `serve` (current runtime hook). Add more via `cmd/<name>` and register on root.
-- Version output: `./microservice-template --version` (ldflags populate `pkg/version`).
-- `serve` lifecycle: `PreRun` logs version; `RunE` should start your workloads; `PostRun` always stops app.
-- Adding a new command (example):
-  ```go
-  // cmd/health/health.go
-  package health
-
-  import "github.com/spf13/cobra"
-
-  func Cmd() *cobra.Command {
-      return &cobra.Command{
-          Use:   "health",
-          Short: "Health probe",
-          RunE: func(_ *cobra.Command, _ []string) error {
-              // add checks here
-              return nil
-          },
-      }
-  }
-  ```
-  Register it in `cmd/microservice-template.go`: `rootCmd.AddCommand(health.Cmd())`.
 
 ## Models & Enums
 - Location: `internal/models` with go-pg struct tags/hooks for database integration.

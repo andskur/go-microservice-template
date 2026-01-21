@@ -31,7 +31,8 @@ func (m *mockService) GetUserByEmail(_ context.Context, email string) (*domainmo
 
 func TestNewModule(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address:     "localhost:8080",
+		Host:        "localhost",
+		Port:        8080,
 		Timeout:     "30s",
 		SwaggerSpec: "./api/swagger.yaml",
 		Enabled:     true,
@@ -57,7 +58,8 @@ func TestNewModule(t *testing.T) {
 
 func TestModule_Name(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address: "localhost:8080",
+		Host:    "localhost",
+		Port:    8080,
 		Timeout: "30s",
 	}
 	svc := &mockService{}
@@ -71,7 +73,8 @@ func TestModule_Name(t *testing.T) {
 
 func TestModule_Init(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address:     "localhost:8080",
+		Host:        "localhost",
+		Port:        8080,
 		Timeout:     "30s",
 		SwaggerSpec: "./api/swagger.yaml",
 		MockAuth:    true,
@@ -117,7 +120,8 @@ func TestModule_Init(t *testing.T) {
 
 func TestModule_Init_InvalidTimeout(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address: "localhost:8080",
+		Host:    "localhost",
+		Port:    8080,
 		Timeout: "invalid",
 		CORS: &config.CORSConfig{
 			Enabled: false,
@@ -138,34 +142,54 @@ func TestModule_Init_InvalidTimeout(t *testing.T) {
 	}
 }
 
-func TestModule_Init_InvalidAddress(t *testing.T) {
-	cfg := &config.HTTPConfig{
-		Address: "invalid-address",
-		Timeout: "30s",
-		CORS: &config.CORSConfig{
-			Enabled: false,
-		},
-		RateLimit: &config.RateLimitConfig{
-			Enabled: false,
-		},
-	}
+func TestModule_Init_InvalidHostOrPort(t *testing.T) {
+	t.Run("empty host", func(t *testing.T) {
+		cfg := &config.HTTPConfig{
+			Host:      "",
+			Port:      8080,
+			Timeout:   "30s",
+			CORS:      &config.CORSConfig{Enabled: false},
+			RateLimit: &config.RateLimitConfig{Enabled: false},
+		}
 
-	svc := &mockService{}
-	module := NewModule(cfg, svc, nil)
+		svc := &mockService{}
+		module := NewModule(cfg, svc, nil)
 
-	ctx := context.Background()
-	err := module.Init(ctx)
+		ctx := context.Background()
+		err := module.Init(ctx)
 
-	if err == nil {
-		t.Error("expected error for invalid address, got nil")
-	}
+		if err == nil {
+			t.Error("expected error for empty host, got nil")
+		}
+	})
+
+	t.Run("invalid port", func(t *testing.T) {
+		cfg := &config.HTTPConfig{
+			Host:      "localhost",
+			Port:      -1,
+			Timeout:   "30s",
+			CORS:      &config.CORSConfig{Enabled: false},
+			RateLimit: &config.RateLimitConfig{Enabled: false},
+		}
+
+		svc := &mockService{}
+		module := NewModule(cfg, svc, nil)
+
+		ctx := context.Background()
+		err := module.Init(ctx)
+
+		if err == nil {
+			t.Error("expected error for invalid port, got nil")
+		}
+	})
 }
 
 func TestModule_Lifecycle(t *testing.T) {
 	t.Skip("Skipping lifecycle test - go-swagger generated server doesn't shut down gracefully in tests")
 
 	cfg := &config.HTTPConfig{
-		Address:     "localhost:18080", // Use different port to avoid conflicts
+		Host:        "localhost",
+		Port:        18080, // Use different port to avoid conflicts
 		Timeout:     "30s",
 		SwaggerSpec: "./api/swagger.yaml",
 		MockAuth:    true,
@@ -216,7 +240,8 @@ func TestModule_Lifecycle(t *testing.T) {
 
 func TestModule_Stop_WithoutStart(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address: "localhost:8080",
+		Host:    "localhost",
+		Port:    8080,
 		Timeout: "30s",
 	}
 
@@ -234,7 +259,8 @@ func TestModule_Stop_WithoutStart(t *testing.T) {
 
 func TestModule_HealthCheck(t *testing.T) {
 	cfg := &config.HTTPConfig{
-		Address: "localhost:8080",
+		Host:    "localhost",
+		Port:    8080,
 		Timeout: "30s",
 	}
 

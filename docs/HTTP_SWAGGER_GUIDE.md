@@ -69,7 +69,8 @@ The HTTP module provides:
 
 ```bash
 export HTTP_ENABLED=true
-export HTTP_ADDRESS="0.0.0.0:8080"
+export HTTP_HOST="0.0.0.0"
+export HTTP_PORT=8080
 export HTTP_MOCK_AUTH=true  # For local development
 ```
 
@@ -97,7 +98,8 @@ curl -H "Authorization: Bearer test-token" \
 ```yaml
 http:
   enabled: true
-  address: "0.0.0.0:8080"
+  host: "0.0.0.0"
+  port: 8080
   timeout: "30s"
   swagger_spec: "./api/swagger.yaml"
   mock_auth: false
@@ -136,7 +138,8 @@ Configuration can be overridden with environment variables (dots become undersco
 
 ```bash
 HTTP_ENABLED=true
-HTTP_ADDRESS="0.0.0.0:8080"
+HTTP_HOST="0.0.0.0"
+HTTP_PORT=8080
 HTTP_TIMEOUT="30s"
 HTTP_MOCK_AUTH=true
 HTTP_ADMIN_EMAILS="admin1@example.com,admin2@example.com"
@@ -160,7 +163,8 @@ HTTP_GATEKEEPER_TIMEOUT="5s"
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | bool | false | Enable HTTP module |
-| `address` | string | "0.0.0.0:8080" | Host:port to listen on |
+| `host` | string | "0.0.0.0" | Host interface to bind |
+| `port` | int | 8080 | Port to listen on |
 | `timeout` | string | "30s" | Request timeout |
 | `swagger_spec` | string | "./api/swagger.yaml" | Path to swagger spec |
 | `mock_auth` | bool | false | Use mock authentication |
@@ -806,7 +810,8 @@ paths:
 ```yaml
 http:
   enabled: true
-  address: "0.0.0.0:8080"
+  host: "0.0.0.0"
+  port: 8080
   timeout: "30s"
   mock_auth: false
   admin_emails:

@@ -17,7 +17,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
-- Local stack helpers: `make compose-up`, `make compose-down`, `make compose-restart` (Postgres + migrations + Redis).
+- Local stack helpers: `make compose-up`, `make compose-down`, `make compose-restart` (Postgres + migrations).
 
 ## Testing guidance
 - Place tests alongside code (`*_test.go`).
@@ -261,7 +261,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Recovery: catch panics, log stack trace, return 500.
 - Logger: log request method, path, duration, status code; Info for 2xx/3xx, Error for 4xx/5xx.
 - CORS: configurable origins/methods/headers via `http.cors.*` config; preflight support.
-- RateLimit: token bucket per IP with `http.rate_limit.requests_per_second` and burst size.
+- RateLimit: token bucket per IP with `http.rate_limit.requests_per_sec` and burst size.
 - Chain with justinas/alice: `alice.New(Recovery(), Logger(), CORS(), RateLimit()).Then(handler)`.
 - Add new middleware in `internal/http/middlewares/`; register in module's `setupRoutes()`.
 

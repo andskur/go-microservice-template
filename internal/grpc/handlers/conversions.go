@@ -4,8 +4,6 @@ package handlers
 import (
 	"fmt"
 
-	"microservice-template/pkg/logger"
-
 	"microservice-template/internal/models"
 	proto "microservice-template/protocols/userservice"
 )
@@ -16,8 +14,6 @@ func UserToProto(user *models.User) *proto.User {
 	if user == nil {
 		return nil
 	}
-
-	logger.Log().Info("popa")
 
 	return &proto.User{
 		Uuid:      user.UUID.Bytes(),

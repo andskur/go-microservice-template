@@ -77,20 +77,11 @@ func (h *UserServiceHandler) GetUserByEmail(ctx context.Context, req *proto.Emai
 
 // CreateUser creates a new user.
 func (h *UserServiceHandler) CreateUser(ctx context.Context, req *proto.CreateUserRequest) (*proto.User, error) {
-	fmt.Println("HER")
-
-	fmt.Printf("%s\n", req)
-
 	if req == nil {
-
-		fmt.Println("POPAOPAOA")
-
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
 	h.log.Infof("gRPC CreateUser: %s", req.Email)
-
-	fmt.Println(req)
 
 	// Convert proto request to domain model
 	user, err := CreateUserRequestToModel(req)

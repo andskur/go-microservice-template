@@ -34,10 +34,11 @@ type HTTPConfig struct {
 	RateLimit  *RateLimitConfig  `mapstructure:"rate_limit"` // Rate limiting
 	Gatekeeper *GatekeeperConfig `mapstructure:"gatekeeper"` // Gatekeeper configuration (JWT validation service)
 
-	Address     string   `mapstructure:"address"`      // "host:port" format (e.g., "0.0.0.0:8080")
+	Host        string   `mapstructure:"host"`         // Server host (e.g., "0.0.0.0" or "localhost")
 	Timeout     string   `mapstructure:"timeout"`      // Request timeout (e.g., "30s")
 	SwaggerSpec string   `mapstructure:"swagger_spec"` // Path to swagger.yaml
 	AdminEmails []string `mapstructure:"admin_emails"` // Admin user emails for role checking
+	Port        int      `mapstructure:"port"`         // Server port (e.g., 8080)
 
 	Enabled  bool `mapstructure:"enabled"`   // Enable HTTP module
 	MockAuth bool `mapstructure:"mock_auth"` // Enable mock auth for testing (bypasses gatekeeper)

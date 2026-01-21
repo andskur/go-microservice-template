@@ -41,6 +41,8 @@ fi
 CURRENT_BASE=${CURRENT_MODULE##*/}
 NEW_BASE=${NEW_MODULE##*/}
 NEW_PASCAL=$(echo "${NEW_BASE}" | perl -pe 's/(^|-)([a-z0-9])/uc($2)/ge; s/[^A-Za-z0-9]//g')
+# Preserve API acronym casing (e.g., my-api -> MyAPI)
+NEW_PASCAL=$(echo "${NEW_PASCAL}" | perl -pe 's/Api/API/g')
 API_STRUCT_NAME="${NEW_PASCAL}APIAPI"
 
 cat <<EOF
