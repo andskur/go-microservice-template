@@ -39,3 +39,6 @@ internal/http/models/
 .env
 
 local
+
+
+microservice-template
