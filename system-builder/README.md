@@ -85,3 +85,15 @@ Located in `task-templates/`. Task 1 fills 02-06 based on requirements.
 - Use Makefile targets; skip lints initially; focus on correctness.
 - Keep user in the loop: approval after planning, confirmation before each task run.
 - See `protocols-guide.md` for proto conventions and `common-issues.md` for quick fixes.
+
+## How to Use the System Builder
+
+1) **Clone this template** locally (done once).
+2) **Read the essentials**: `AGENTS.md`, `system-builder/agent-prompt-compact.md`, `protocols-guide.md`, `common-issues.md`.
+3) **Write a short requirements.md** using the mini template in `agent-prompt-compact.md`.
+4) **Give the agent the compact prompt** (from `agent-prompt-compact.md`) and your `requirements.md`.
+5) Agent runs the workflow:
+   - Phase 0: explore docs (no confirmation)
+   - Phase 1: creates tasks 02–06, then stops for approval
+   - Phase 2: executes tasks 02–06 with confirmation before each
+6) Success: builds and tests pass, compose healthy, integration tests pass, each repo clean.
