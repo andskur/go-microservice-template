@@ -16,6 +16,7 @@ import (
 	"microservice-template/internal/module"
 	"microservice-template/internal/repository"
 	"microservice-template/internal/service"
+	wsmod "microservice-template/internal/websocket"
 	"microservice-template/pkg/logger"
 	"microservice-template/pkg/version"
 )
@@ -142,6 +143,19 @@ func (app *App) registerModules() error {
 		// Initialize gRPC module
 		if err := grpcModule.Init(ctx); err != nil {
 			return fmt.Errorf("init grpc module: %w", err)
+		}
+	}
+
+	// 6. Transport: WebSocket server module (optional)
+	if app.config.WebSocket != nil && app.config.WebSocket.Enabled {
+		logger.Log().Info("websocket enabled, registering websocket module")
+
+		wsModule := wsmod.NewModule(app.config.WebSocket, app.svc)
+		app.modules.Register(wsModule)
+
+		// Initialize WebSocket module
+		if err := wsModule.Init(ctx); err != nil {
+			return fmt.Errorf("init websocket module: %w", err)
 		}
 	}
 

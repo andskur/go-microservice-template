@@ -72,4 +72,20 @@ func setDefaults() {
 	// Gatekeeper defaults (for future use)
 	viper.SetDefault("http.gatekeeper.address", "localhost:9091")
 	viper.SetDefault("http.gatekeeper.timeout", "5s")
+
+	// WebSocket module defaults
+	viper.SetDefault("websocket.enabled", false)
+	viper.SetDefault("websocket.host", "0.0.0.0")
+	viper.SetDefault("websocket.port", 8081)
+	viper.SetDefault("websocket.timeout", "30s")
+	viper.SetDefault("websocket.read_buffer_size", 1024)
+	viper.SetDefault("websocket.write_buffer_size", 1024)
+	viper.SetDefault("websocket.max_message_size", 512000) // 500KB
+	viper.SetDefault("websocket.ping_interval", "54s")
+	viper.SetDefault("websocket.pong_wait", "60s")
+	viper.SetDefault("websocket.write_wait", "10s")
+
+	// WebSocket connection limits
+	viper.SetDefault("websocket.limits.max_connections", 0)          // 0 = unlimited
+	viper.SetDefault("websocket.limits.max_connections_per_room", 0) // 0 = unlimited
 }

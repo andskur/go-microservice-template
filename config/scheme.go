@@ -66,6 +66,27 @@ type GatekeeperConfig struct {
 	Timeout string `mapstructure:"timeout"` // Request timeout (e.g., "5s")
 }
 
+// WebSocketConfig holds WebSocket server settings.
+type WebSocketConfig struct {
+	Limits          *WSLimitsConfig `mapstructure:"limits"`            // Connection limits
+	Host            string          `mapstructure:"host"`              // Server host (e.g., "0.0.0.0")
+	Timeout         string          `mapstructure:"timeout"`           // Connection timeout (e.g., "30s")
+	PingInterval    string          `mapstructure:"ping_interval"`     // Ping keepalive interval (e.g., "54s")
+	PongWait        string          `mapstructure:"pong_wait"`         // Pong response timeout (e.g., "60s")
+	WriteWait       string          `mapstructure:"write_wait"`        // Write deadline (e.g., "10s")
+	MaxMessageSize  int64           `mapstructure:"max_message_size"`  // Max message size in bytes
+	Port            int             `mapstructure:"port"`              // Server port (e.g., 8081)
+	ReadBufferSize  int             `mapstructure:"read_buffer_size"`  // Read buffer size in bytes
+	WriteBufferSize int             `mapstructure:"write_buffer_size"` // Write buffer size in bytes
+	Enabled         bool            `mapstructure:"enabled"`           // Enable WebSocket module
+}
+
+// WSLimitsConfig holds WebSocket connection limit settings.
+type WSLimitsConfig struct {
+	MaxConnections        int `mapstructure:"max_connections"`          // Global max connections (0 = unlimited)
+	MaxConnectionsPerRoom int `mapstructure:"max_connections_per_room"` // Per-room max connections (0 = unlimited)
+}
+
 // Scheme represents the application configuration scheme.
 type Scheme struct {
 	// Database configuration for repository module (optional; nil if disabled).
@@ -79,6 +100,9 @@ type Scheme struct {
 
 	// HTTP configuration for HTTP module (optional; nil if disabled).
 	HTTP *HTTPConfig `mapstructure:"http"`
+
+	// WebSocket configuration for WebSocket module (optional; nil if disabled).
+	WebSocket *WebSocketConfig `mapstructure:"websocket"`
 
 	// Env is the application environment (e.g. prod, dev, local).
 	Env string `mapstructure:"env"`

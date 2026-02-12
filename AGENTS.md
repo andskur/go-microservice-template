@@ -290,6 +290,52 @@ No other AGENTS.md or Cursor/Copilot rules found.
   }
   ```
 
+### WebSocket Module
+- Optional; enabled via `websocket.enabled=true` in config.
+- Config struct: `config.WebSocketConfig` (`websocket.*` keys), defaults in `config/init.go`.
+- Module implementation: `internal/websocket/` (Init/Start/Stop/HealthCheck).
+- Uses `gorilla/websocket` library for WebSocket protocol support.
+- Features: pub/sub with rooms, broadcasting, connection limits.
+- Health: `GET /health` endpoint returns client/room counts.
+- Service integration: handlers have access to `service.IService` for business logic.
+
+### WebSocket Architecture
+- Hub pattern: central `Hub` manages all client connections and message routing.
+- Client: represents individual WebSocket connection with read/write goroutines.
+- Room: named channel for pub/sub; clients subscribe/unsubscribe to rooms.
+- Messages: JSON format with `type`, `room`, `data`, `timestamp` fields.
+
+### WebSocket Message Types
+- Client → Server: `subscribe`, `unsubscribe`, `publish`, `broadcast`, `ping`.
+- Server → Client: `connected`, `subscribed`, `unsubscribed`, `message`, `error`, `pong`.
+
+### WebSocket Configuration
+```yaml
+websocket:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8081
+  max_message_size: 512000  # 500KB
+  ping_interval: "54s"
+  pong_wait: "60s"
+  limits:
+    max_connections: 10000
+    max_connections_per_room: 1000
+```
+
+### WebSocket Testing
+- Test module lifecycle with `go test ./internal/websocket/...`.
+- Integration tests use real WebSocket connections via `gorilla/websocket` client.
+- Test pub/sub: connect multiple clients, subscribe to room, verify message delivery.
+- Health check: `curl http://localhost:8081/health`.
+- Manual testing: `wscat -c ws://localhost:8081/ws`.
+
+### WebSocket Custom Handlers
+- Extend `HandleMessage()` in `internal/websocket/handlers.go` for custom message types.
+- Use `RegisterCustomHandler(msgType, handler)` for modular handler registration.
+- Access service layer via `h.service` for business logic in handlers.
+- See `docs/WEBSOCKET_GUIDE.md` for detailed patterns.
+
 ### Repository Layer with go-pg
 - Repository module wraps `*pg.DB` connection and implements `IRepository` interface.
 - Located in `internal/repository/`; registered only when `database.enabled=true`.
