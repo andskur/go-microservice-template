@@ -58,10 +58,21 @@ STOP after writing tasks → present summary → **request user approval**.
 For each task: present → **request confirmation** → execute → show results → **request confirmation** before next.
 
 ## Critical Points
+- **Protocol versioning**: Always use `.v1` package suffix and matching directory (e.g., `userservice/v1/`).
+- **buf lint/generate**: buf is primary; it will enforce versioning, directory match, and unused imports.
 - **Module removal** (avoid build errors):
   - gRPC-only: `rm -rf internal/http/ api/ internal/grpcclient/`
   - HTTP-only: `rm -rf internal/grpc/ internal/repository/` (keep grpcclient if proxying)
   - Update `internal/application.go`; `go mod tidy && make build`
+- **Defaults**: Do NOT flip config defaults to enabled; enable modules via env/.env/compose. If a module is required, add a startup check that fails fast when disabled.
+- **Contract fidelity**: Implement only RPCs/endpoints defined in proto/swagger; remove unsupported CRUD; align types (UUID bytes, int64 timestamps).
+- **Mocks**: Ensure mocks satisfy interfaces; add missing methods; align signatures.
+- **HTTP handlers (go-swagger)**: Match generated signatures exactly (params + principal), and use only generated response constructors.
+- **Avoid concrete casts**: Keep dependencies as interfaces (e.g., grpcclient.IClient) to allow mocks; don’t cast to concrete modules in handlers.
+- **Swagger security**: If global jwt security is present, requests need Authorization. If you remove security to make endpoints public, regenerate code; handler signatures may drop `principal`, update handlers/tests accordingly, and delete stale `configure_api_*` before regen.
+- **Service registration & env**: Ensure gRPC service names match proto (case-sensitive) and set GRPC_ENABLED/HTTP_ENABLED/DATABASE_ENABLED/GRPC_CLIENT_ENABLED in compose.
+- **Postgres robustness**: Consider pg.Options MaxRetries (e.g., 5) and `pg:",use_zero"` on zero-able fields.
+- **Protocol/go_package alignment**: Set proto go_package to match module path to avoid go mod tidy issues; align gateway/backend contracts (no drift).
 - **Type conversions**:
   - UUID: `uuid.FromBytes(pb.Uuid)` / `u.Bytes()`
   - Time: `time.Unix(pb.CreatedAt, 0)` / `t.Unix()`

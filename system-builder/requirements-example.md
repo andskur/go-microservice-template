@@ -8,11 +8,11 @@ Simple user management with gRPC backend and HTTP gateway.
 
 ## Protocols
 
-Reference: follow `system-builder/protocols-guide.md` conventions (UUID as bytes, timestamps as int64 Unix, UNSPECIFIED enums).
+Reference: follow `system-builder/protocols-guide.md` conventions (UUID as bytes, timestamps as int64 Unix, UNSPECIFIED enums, versioned packages).
 
-Package: `userservice`
+Package: `userservice.v1` (directory: `userservice/v1/`)
 
-Models
+Models (in `userservice/v1/user.proto`)
 - User: uuid (bytes), email (string), name (string), status (UserStatus), created_at (int64 Unix), updated_at (int64 Unix)
 - UserStatus (enum): USER_STATUS_UNSPECIFIED=0, USER_STATUS_ACTIVE=1, USER_STATUS_DELETED=2
 - EmailRequest: email (string)

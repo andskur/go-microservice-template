@@ -100,3 +100,35 @@ Null Handling:
 - [ ] Imports minimal and resolvable.
 - [ ] RPCs use clear verbs.
 - [ ] Conversion helpers planned (UUID, timestamp, enums).
+
+## Package Versioning (Required)
+
+- Always version packages with `.v1` (and increment to v2, v3, ... when making breaking changes).
+- Directory must match package:
+  - `package userservice.v1` → file path `userservice/v1/<file>.proto`
+  - `package common.v1` → path `common/v1/<file>.proto`
+- Set go_package accordingly, e.g.:
+  ```proto
+  // File: protocols/userservice/v1/user.proto
+  syntax = "proto3";
+  package userservice.v1;
+  option go_package = "your-project/protocols/userservice/v1;userservicev1";
+  ```
+
+### buf.yaml (root of protocols)
+Recommended minimal config:
+```yaml
+version: v1
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+```
+
+### buf Lint Expectations
+- Will enforce versioned packages.
+- Will enforce directory matching package.
+- Flags unused imports—remove them.
+- Follow the errors; don't disable linting.

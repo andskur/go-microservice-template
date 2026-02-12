@@ -10,6 +10,10 @@ Template Steps (fill from requirements)
 - Build and start: `docker-compose build`, `docker-compose up -d`.
 - Verify: `docker-compose ps`, health endpoints/grpc health.
 
+Notes
+- Ensure GRPC_ENABLED/HTTP_ENABLED/DATABASE_ENABLED/GRPC_CLIENT_ENABLED are set per service (modules default to false).
+- Service discovery: service names and registration must match proto (case-sensitive).
+
 Verification
 - All containers healthy; services can talk to each other.
 
