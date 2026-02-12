@@ -84,6 +84,7 @@ The template includes configuration placeholders for common modules:
 | HTTP | HTTP REST API server with Swagger/OpenAPI | `http` | ✅ Implemented (enabled when `http.enabled` is true) |
 | gRPC Server | gRPC API server | `grpc` | ✅ Implemented (enabled when `grpc.enabled` is true) |
 | gRPC Client | External service client for microservice communication | `grpc_client` | ✅ Implemented (enabled when `grpc_client.enabled` is true) |
+| WebSocket | WebSocket server with pub/sub and rooms | `websocket` | ✅ Implemented (enabled when `websocket.enabled` is true) |
 
 ### Enabling Modules
 
@@ -294,6 +295,62 @@ curl -H "Authorization: Bearer test-token" \
 - Maps gRPC errors: `not found` → 404, `invalid input` → 400, `unavailable` → 503
 
 For detailed gRPC development guide including adding new services and proto definitions, see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md).
+
+### WebSocket Server Setup
+
+The WebSocket module provides real-time bidirectional communication with pub/sub support and room management using `gorilla/websocket`.
+
+**Enable WebSocket module:**
+```bash
+export WEBSOCKET_ENABLED=true
+export WEBSOCKET_HOST=0.0.0.0
+export WEBSOCKET_PORT=8081
+
+# Run the service
+make run
+```
+
+**Configuration options:**
+- `websocket.enabled` - Enable/disable WebSocket server (default: false)
+- `websocket.host` - Server host (default: 0.0.0.0)
+- `websocket.port` - Server port (default: 8081)
+- `websocket.max_message_size` - Max message size in bytes (default: 512000)
+- `websocket.limits.max_connections` - Global connection limit (default: 0 = unlimited)
+- `websocket.limits.max_connections_per_room` - Per-room limit (default: 0 = unlimited)
+
+**Connect and test with wscat:**
+```bash
+# Install wscat
+npm install -g wscat
+
+# Connect
+wscat -c ws://localhost:8081/ws
+
+# Subscribe to a room
+> {"type":"subscribe","room":"notifications"}
+< {"type":"subscribed","room":"notifications","data":{"room":"notifications","client_count":1}}
+
+# Publish to a room
+> {"type":"publish","room":"notifications","data":{"message":"hello"}}
+
+# Broadcast to all clients
+> {"type":"broadcast","data":{"announcement":"server restart"}}
+```
+
+**Message types:**
+- `subscribe` - Join a room
+- `unsubscribe` - Leave a room
+- `publish` - Send message to a room (must be subscribed)
+- `broadcast` - Send message to all connected clients
+- `ping` - Keepalive ping (server responds with `pong`)
+
+**Health endpoint:**
+```bash
+curl http://localhost:8081/health
+# Returns: {"status":"healthy","clients":5,"rooms":2}
+```
+
+For detailed WebSocket development guide, see [docs/WEBSOCKET_GUIDE.md](./docs/WEBSOCKET_GUIDE.md).
 
 ### Adding Custom Modules
 
