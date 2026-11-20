@@ -21,6 +21,8 @@ func Cmd(app *internal.App) *cobra.Command {
 		Use:              "microservice-template",
 		Short:            "Service Template",
 		TraverseChildren: true,
+		// Runtime errors are logged by main; do not print usage for them.
+		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			configFile, err := cmd.Flags().GetString(configFlag)
 			if err != nil {
