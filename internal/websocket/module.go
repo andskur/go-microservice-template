@@ -56,6 +56,14 @@ func (m *Module) Start(_ context.Context) error {
 	return nil
 }
 
+// Failed reports fatal errors of the running server (see module.Failer).
+func (m *Module) Failed() <-chan error {
+	if m.server == nil {
+		return nil
+	}
+	return m.server.Failed()
+}
+
 // Stop gracefully shuts down the WebSocket server.
 func (m *Module) Stop(ctx context.Context) error {
 	logger.Log().Infof("stopping %s module", m.Name())

@@ -1,0 +1,18 @@
+# Buf module for the bundled example protobuf API (api/proto/userservice).
+# It lives outside ./protocols so that `make proto-setup` can add a shared
+# protocols repository there as a git subtree without conflicts.
+version: v2
+lint:
+  use:
+    - STANDARD
+  except:
+    # The example keeps its original, unversioned package and request names.
+    - PACKAGE_VERSION_SUFFIX
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
+  enum_zero_value_suffix: _UNSPECIFIED
+  service_suffix: Service
+breaking:
+  use:
+    - FILE

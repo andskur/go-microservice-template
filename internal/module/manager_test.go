@@ -3,7 +3,9 @@ package module
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 )
 
 // mockModule is a test double for Module interface.
@@ -274,5 +276,52 @@ func TestManager_Count(t *testing.T) {
 
 	if manager.Count() != 3 {
 		t.Errorf("expected 3 modules, got %d", manager.Count())
+	}
+}
+
+// failingModule is a module whose background work can fail after Start.
+type failingModule struct {
+	failed chan error
+	mockModule
+}
+
+func (m *failingModule) Failed() <-chan error { return m.failed }
+
+func TestManager_FatalReportsRuntimeFailure(t *testing.T) {
+	manager := NewManager()
+	mod := &failingModule{mockModule: mockModule{name: "server"}, failed: make(chan error, 1)}
+	manager.Register(mod)
+
+	if err := manager.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+
+	mod.failed <- errors.New("listener closed")
+	close(mod.failed)
+
+	select {
+	case err := <-manager.Fatal():
+		if err == nil || !strings.Contains(err.Error(), "server") || !strings.Contains(err.Error(), "listener closed") {
+			t.Fatalf("unexpected fatal error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected a fatal error from the manager")
+	}
+}
+
+func TestManager_NoFatalOnCleanStop(t *testing.T) {
+	manager := NewManager()
+	mod := &failingModule{mockModule: mockModule{name: "server"}, failed: make(chan error)}
+	manager.Register(mod)
+
+	if err := manager.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	close(mod.failed) // background work ended without error
+
+	select {
+	case err := <-manager.Fatal():
+		t.Fatalf("unexpected fatal error: %v", err)
+	case <-time.After(100 * time.Millisecond):
 	}
 }

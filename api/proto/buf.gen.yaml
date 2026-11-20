@@ -1,0 +1,13 @@
+# Code generation for the bundled example API. Run via `make generate-proto`.
+# Plugins are the locally installed, version-pinned binaries in ./bin
+# (see `make tools`), so generation needs neither protoc nor network access.
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: .
+    opt:
+      - paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: .
+    opt:
+      - paths=source_relative

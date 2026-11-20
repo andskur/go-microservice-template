@@ -31,3 +31,13 @@ type Module interface {
 	// Should be quick (< 2 seconds) and return error if module is unhealthy.
 	HealthCheck(ctx context.Context) error
 }
+
+// Failer is implemented by modules that run background work (e.g. a network
+// server) which can fail after Start has returned.
+//
+// The channel delivers fatal errors and must be closed when the background
+// work ends (including on a normal Stop). Any error received makes the
+// application shut down and exit with a non-zero status.
+type Failer interface {
+	Failed() <-chan error
+}

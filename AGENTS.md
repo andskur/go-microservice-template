@@ -11,10 +11,9 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Show version template at runtime: `./microservice-template --version`.
 - `cmd/microservice-template.go`: entry; wires cobra root + serve, executes CLI.
 - Keep binary name driven by `APP` variable (`microservice-template`).
-- Rename project: `make rename NEW_NAME=my-service` (validates name, updates module/imports/Makefile/Dockerfile/docs/CLI/swagger API struct; optional NEW_REMOTE for git remote).
-- After rename: run `make generate-all` (protos + swagger) before builds/tests to refresh generated code.
-- Rename validation: lowercase letters, numbers, hyphens, optional path segments (`my-service`, `github.com/org/my-service`).
-- After rename: verify with `go test ./...`, `make build`, `./<new-binary> --version`.
+- Generate code: `make generate` (protobuf via buf + pinned local plugins, swagger via pinned go-swagger). Generated code is not committed.
+- Rename project: `make rename NEW_NAME=my-service` or `NEW_NAME=github.com/org/my-service` (module path; last element = binary name, lowercase/digits/hyphens). Updates module/imports, Makefile, entrypoint, CLI `Use`, Dockerfile COPY+ENTRYPOINT, .gitignore/.dockerignore, dev DB name, example proto go_package, buf go_package_prefix, docs; optional NEW_REMOTE for git remote. It deletes and regenerates generated code itself (`make generate`), so order relative to `make generate` does not matter.
+- After rename: verify with `go build ./... && go test -race ./...`, `docker build .`, `./<new-binary> --version`.
 - For cross-compilation, override `GOOS`/`GOARCH` on make invocations.
 - Optimize size with `-w -s`; avoid removing if debug symbols needed locally.
 - Local stack helpers: `make compose-up`, `make compose-down`, `make compose-restart` (Postgres + migrations).
@@ -32,7 +31,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 
 ## Linting & formatting
 - Use `gofmt` on all Go files; do not hand-format.
-- Golangci-lint config is checked in at `.golangci.yml` with extensive enables (errcheck, govet, staticcheck, revive, misspell, bodyclose, gosec, gocyclo, dupl, etc.).
+- Golangci-lint v2 (version pinned in Makefile `GOLANGCI_LINT_VERSION`; `make lint` or `make lint-docker`). Config is checked in at `.golangci.yml` (v2 format) with extensive enables (errcheck, govet, staticcheck, revive, misspell, bodyclose, gosec, gocyclo, dupl, etc.).
 - Custom settings: gocyclo min-complexity 15; dupl threshold 100; nakedret max 30 lines; line-length 120; errcheck checks type assertions.
 - Test files exclude some linters (gocyclo, errcheck, dupl, gosec, goconst) per config.
 - Keep lines < 120 chars when reasonable; no trailing whitespace; unix line endings.
@@ -60,7 +59,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Log at the boundary; functions should return errors, not log + return.
 - Use `pkg/logger.Log()` (logrus) with appropriate level; avoid noisy Info for errors.
 - Include context in messages (`action: %w`).
-- Handle config file not found gracefully (already in root initializeConfig).
+- Config file: `--config <file>` / `CONFIG_FILE` (must exist) or optional `config.*` in `.`, `./config`, `/etc/<binary>`; env overrides file; see `cmd/root/root.go`.
 - When stopping app, log underlying stop errors; do not swallow silently.
 
 ## Concurrency & lifecycle
@@ -112,20 +111,17 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Health: standard `grpc.health.v1` service registered automatically.
 - Middleware: logging + recovery (no Sentry). Logging at Info for requests, Error for failures.
 - Proto conversions live in `internal/grpc/` (keep models free of proto deps).
-- Protocols are sourced via subtree from `https://github.com/andskur/protocols-template.git`; no bundled example is kept locally.
+- The bundled example API is `api/proto/userservice` (imported as `<module>/api/proto/userservice`). Shared protocols are added under `protocols/` via subtree and generated with a `go_package_prefix` override (`buf.gen.yaml`) so they import as `<module>/protocols/...`.
 
 ### Protobuf Workflow
 - Targets in Makefile:
-  - `make proto-install`: install protoc plugins (go, go-grpc).
-  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree (default: andskur/protocols-template).
+  - `make tools`: install pinned buf, protoc-gen-go, protoc-gen-go-grpc, swagger into `./bin` (automatic).
+  - `make proto-setup PROTO_REPO=<url>`: add protocols as subtree at `protocols/` (clean working tree required).
   - `make proto-update`: update subtree.
-  - `make proto-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>/*.proto` (protoc).
-  - `make proto-generate-all`: generate Go code from all packages (protoc).
-  - `make buf-install`: install Buf CLI.
+  - `make generate-proto` (aliases `proto-generate-all`, `buf-generate-all`): generate `api/proto` and `protocols/` (buf).
+  - `make proto-generate PROTO_PACKAGE=<name>`: generate `protocols/<name>` only (buf).
   - `make buf-lint`: lint protos with Buf.
-  - `make buf-breaking`: check breaking changes vs main.
-  - `make buf-generate PROTO_PACKAGE=<name>`: generate Go code from `protocols/<name>` (Buf).
-  - `make buf-generate-all`: generate Go code for all packages (Buf).
+  - `make buf-breaking`: check `protocols/` breaking changes vs main.
   - `make proto-clean`: remove generated `.pb.go` files.
   - `make test-grpc`: run gRPC package tests (unit + integration).
 - Generated files are ignored (.gitignore). Pull the shared protocols repo via subtree before generating.
@@ -167,7 +163,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Testing: use `mock.GRPCClient` for handler tests; test conversions separately; module lifecycle tests verify Init/Start/Stop.
 
 ### Adding a New External Service Client
-1. Define proto in `protocols/<servicename>/*.proto`; generate with `make proto-generate PROTO_PACKAGE=<servicename>`.
+1. Add the proto to the shared protocols repo and pull it (`make proto-update`), then `make generate-proto`.
 2. Create client library in `pkg/<servicename>/`: interface (proto types), implementation, unit tests.
 3. Create or extend module in `internal/grpcclient/`: add methods + conversions for new service.
 4. Add config if new service (or extend existing `GRPCClientConfig` with service-specific settings).
@@ -188,11 +184,11 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Handler pattern: struct with dependencies → `Handle(w http.ResponseWriter, r *http.Request)` method.
 - Error mapping: service errors map to HTTP status (ErrNotFound → 404, ErrInvalidInput → 400, ErrRepositoryUnavailable → 503).
 - Model conversions: `internal/http/formatter/` package converts domain models ↔ API models (generated from swagger).
-- Health: `GET /health` returns 200 with status; checks all module health.
+- Health: `GET /api/v1/health` and the unversioned alias `GET /health` return 200, or 503 when any module's `HealthCheck` fails (via `module.Manager.HealthCheckAll`). Not rate limited.
+- Server: plain `net/http.Server` (the go-swagger generated server runtime is not used); listen errors fail `Start`, later serve errors are reported via `module.Failer` and stop the app with a non-zero exit.
 
 ### Swagger Workflow
 - Targets in Makefile:
-  - `make swagger-install`: install go-swagger CLI.
   - `make swagger-validate`: validate `api/swagger.yaml` spec.
   - `make generate-api`: generate server code from spec (creates `internal/http/server/` and `internal/http/models/`).
   - `make swagger-clean`: remove generated code.
@@ -253,7 +249,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - JWT validation in `internal/http/auth/auth.go` via `Authenticate()` middleware.
 - Production: validates JWT signature, checks expiration, extracts claims (user ID, email, admin flag).
 - Development: use `http.mock_auth=true` to bypass validation (accepts any Bearer token).
-- Gatekeeper integration: detailed TODO in `auth.go` for future external auth service integration.
+- Auth service integration: detailed TODO in `auth.go` for future external auth service integration.
 - Protected routes: apply `Authenticate()` middleware in handler chain.
 - Claims stored in request context; retrieve with `auth.GetUserID(r)`, `auth.GetEmail(r)`, `auth.IsAdmin(r)`.
 
@@ -261,7 +257,7 @@ No other AGENTS.md or Cursor/Copilot rules found.
 - Recovery: catch panics, log stack trace, return 500.
 - Logger: log request method, path, duration, status code; Info for 2xx/3xx, Error for 4xx/5xx.
 - CORS: configurable origins/methods/headers via `http.cors.*` config; preflight support.
-- RateLimit: token bucket per IP with `http.rate_limit.requests_per_sec` and burst size.
+- RateLimit: token bucket per client IP (`net.SplitHostPort(RemoteAddr)`); `X-Forwarded-For` only from `http.rate_limit.trusted_proxies` (right-most untrusted hop); idle limiters evicted after `http.rate_limit.idle_ttl`; health endpoints exempt.
 - Chain with justinas/alice: `alice.New(Recovery(), Logger(), CORS(), RateLimit()).Then(handler)`.
 - Add new middleware in `internal/http/middlewares/`; register in module's `setupRoutes()`.
 
@@ -396,13 +392,14 @@ websocket:
 
 ## Development Workflow
 - Format: `gofmt` (used via go tooling).
-- Lint: `make lint` (golangci-lint; see `.golangci.yml`).
-- Tests: `make test` or `go test ./...`; single test example `go test ./cmd/root -run TestInitializeConfig -count=1`.
+- Lint: `make lint` (pinned golangci-lint v2; see `.golangci.yml`) or `make lint-docker`.
+- Vulnerabilities: `make vuln` (pinned govulncheck).
+- Tests: `make test` (`go test -race ./...`); single test example `go test ./cmd/root -run TestInitializeConfig -count=1`.
 - Build: `make build` (CGO disabled; ldflags inject version info).
 - Deps: `make tidy` after changes; `make update` to bump modules.
 
 ## Docker
-- Dockerfile: multi-stage build (golang:1.24 builder → scratch); invokes `make build`.
+- Dockerfile: multi-stage build (golang:1.26.x builder pinned by digest → scratch, non-root); runs `make tools`, `make generate`, `make build`, so it builds from a fresh clone.
 - Binary name in Dockerfile COPY/ENTRYPOINT must match Makefile `APP` variable.
 - Current binary: `/microservice-template` (synced with `APP:=microservice-template`).
 - `make rename` updates Dockerfile automatically.
@@ -414,7 +411,8 @@ websocket:
 ## Scripts
 - `scripts/rename.sh`: automated project rename; invoked via `make rename NEW_NAME=...`.
 - `scripts/template-sync.sh`: template sync helper (setup/status/diff/sync) used by Makefile targets.
-- Validates Go module naming; prompts for confirmation; updates go.mod, imports, Makefile vars, entrypoint, CLI `Use`, Dockerfile, docs; optional git remote update; runs `go mod tidy`.
+- `scripts/sync-swagger-api.sh`: after `make generate-api`, rewrites the swagger API type in `internal/http/module.go` to the name go-swagger generated.
+- Rename validates the module path (regex + `go mod edit`); updates go.mod, imports, Makefile vars, entrypoint, CLI `Use`, Dockerfile, docs; optional git remote update; runs `go mod tidy`.
 - New scripts: add to `scripts/`, make executable, document purpose and invocation here and in README.
 
 ## Template Synchronization (for downstream repos)

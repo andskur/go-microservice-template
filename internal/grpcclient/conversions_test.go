@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/internal/models"
-	proto "microservice-template/protocols/userservice"
 )
 
 func TestUserToProto(t *testing.T) {

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Renames the service: Go module path, binary name and everything derived from them.
+#
+# Generated code (protobuf, swagger) is never edited in place: it is deleted and
+# regenerated with `make generate` after the rename, so it does not matter
+# whether `make generate` was run before `make rename` or not.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -6,12 +11,14 @@ cd "${ROOT_DIR}"
 
 usage() {
   cat <<'EOF'
-Usage: make rename NEW_NAME=<module-or-binary-name>
+Usage: make rename NEW_NAME=<module-path-or-name>
 
-NEW_NAME should be a valid Go module path or name.
+NEW_NAME is a Go module path; its last element becomes the binary name.
 Examples:
   make rename NEW_NAME=my-service
-  make rename NEW_NAME=github.com/yourorg/my-service
+  make rename NEW_NAME=github.com/your-org/my-service
+
+Set SKIP_GENERATE=1 to skip regenerating code (not recommended).
 EOF
 }
 
@@ -21,9 +28,20 @@ if [[ -z "${NEW_MODULE}" ]]; then
   exit 1
 fi
 
-NAME_REGEX='^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$'
-if [[ ! "${NEW_MODULE}" =~ ${NAME_REGEX} ]]; then
-  echo "Error: NEW_NAME must match ${NAME_REGEX}" >&2
+# Module path: slash-separated elements of letters, digits and '.', '-', '_', '~'
+# (the first element may be a domain such as github.com).
+MODULE_REGEX='^[A-Za-z0-9][A-Za-z0-9._~-]*(/[A-Za-z0-9][A-Za-z0-9._~-]*)*$'
+# Binary name (last element): lowercase letters, digits and dashes.
+BASE_REGEX='^[a-z][a-z0-9-]*$'
+
+if [[ ! "${NEW_MODULE}" =~ ${MODULE_REGEX} ]]; then
+  echo "Error: NEW_NAME '${NEW_MODULE}' is not a valid module path (must match ${MODULE_REGEX})" >&2
+  exit 1
+fi
+
+NEW_BASE=${NEW_MODULE##*/}
+if [[ ! "${NEW_BASE}" =~ ${BASE_REGEX} ]]; then
+  echo "Error: last path element '${NEW_BASE}' must match ${BASE_REGEX} (it becomes the binary name)" >&2
   exit 1
 fi
 
@@ -32,102 +50,90 @@ if [[ ! -f go.mod ]]; then
   exit 1
 fi
 
-CURRENT_MODULE=$(perl -ne 'print $1 and exit if /^module\s+(.+)/' go.mod)
+CURRENT_MODULE=$(perl -ne 'print $1 and exit if /^module\s+(\S+)/' go.mod)
 if [[ -z "${CURRENT_MODULE}" ]]; then
   echo "Error: could not determine current module from go.mod" >&2
   exit 1
 fi
 
-CURRENT_BASE=${CURRENT_MODULE##*/}
-NEW_BASE=${NEW_MODULE##*/}
-NEW_PASCAL=$(echo "${NEW_BASE}" | perl -pe 's/(^|-)([a-z0-9])/uc($2)/ge; s/[^A-Za-z0-9]//g')
-# Preserve API acronym casing (e.g., my-api -> MyAPI)
-NEW_PASCAL=$(echo "${NEW_PASCAL}" | perl -pe 's/Api/API/g')
-API_STRUCT_NAME="${NEW_PASCAL}APIAPI"
+# Let the go tool validate the module path as well (dots, case, reserved names).
+cp go.mod go.mod.rename-bak
+if ! go mod edit -module "${NEW_MODULE}" 2>/dev/null; then
+  mv go.mod.rename-bak go.mod
+  echo "Error: '${NEW_MODULE}' is rejected by 'go mod edit -module'" >&2
+  exit 1
+fi
+mv go.mod.rename-bak go.mod
+
+CURRENT_BASE=$(perl -ne 'print $1 and exit if /^APP:=(\S+)/' Makefile)
+CURRENT_BASE=${CURRENT_BASE:-${CURRENT_MODULE##*/}}
+CURRENT_DB="${CURRENT_BASE//-/_}_dev"
+NEW_DB="${NEW_BASE//-/_}_dev"
 
 cat <<EOF
 Renaming project
-  Current module: ${CURRENT_MODULE}
-  New module:     ${NEW_MODULE}
-  Current binary: ${CURRENT_BASE}
-  New binary:     ${NEW_BASE}
-  Entry point:    cmd/${NEW_BASE}.go
-  Will update:
-    - go.mod module path
-    - Go imports
-    - Makefile (APP, APP_ENTRY_POINT, GITVER_PKG)
-    - Entry file rename (cmd/${CURRENT_BASE}.go -> cmd/${NEW_BASE}.go)
-    - Cobra root command name
-    - Dockerfile binary name
-    - README.md and AGENTS.md references
-    - Optional: git remote URL (set NEW_REMOTE to change)
+  Module:   ${CURRENT_MODULE} -> ${NEW_MODULE}
+  Binary:   ${CURRENT_BASE} -> ${NEW_BASE}
+  Dev DB:   ${CURRENT_DB} -> ${NEW_DB}
 EOF
 
-update_go_mod() {
-  perl -pi -e "s|^module\\s+.+$|module ${NEW_MODULE}|" go.mod
+# Files to rewrite: text files tracked by git (or all files when not a git
+# checkout), excluding go.mod/go.sum, LICENSE, generated, vendored and subtree code.
+FILE_LIST=$(mktemp)
+trap 'rm -f "${FILE_LIST}"' EXIT
+
+list_text_files() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files -co --exclude-standard
+  else
+    find . -type f -not -path './.git/*' | sed 's|^\./||'
+  fi | grep -v -E '(^|/)vendor/|\.pb\.go$|^internal/http/(server|models)/|^bin/|^protocols/|^go\.(mod|sum)$|^LICENSE$' \
+     | while IFS= read -r f; do
+         if [[ -f "${f}" ]] && grep -Iq . "${f}" 2>/dev/null; then echo "${f}"; fi
+       done > "${FILE_LIST}"
 }
 
-update_go_imports() {
-  find . -type f -name '*.go' -not -path './vendor/*' -print0 \
-    | xargs -0 perl -pi -e "s|\Q${CURRENT_MODULE}\E|${NEW_MODULE}|g"
+# Runs a perl substitution (reading FROM/TO from the environment) on all files.
+substitute() {
+  local from=$1 to=$2 expr=$3
+  while IFS= read -r file; do
+    [[ -f "${file}" ]] || continue # e.g. the entrypoint before it was moved
+    FROM="${from}" TO="${to}" perl -pi -e "${expr}" "${file}"
+  done < "${FILE_LIST}"
 }
 
-update_makefile() {
-  perl -pi -e "s|^APP:=.+$|APP:=${NEW_BASE}|" Makefile
-  perl -pi -e "s|^APP_ENTRY_POINT:=cmd/.+$|APP_ENTRY_POINT:=cmd/${NEW_BASE}.go|" Makefile
-  perl -pi -e "s|^GITVER_PKG:=.+$|GITVER_PKG:=${NEW_MODULE}/pkg/version|" Makefile
+update_module_path() {
+  go mod edit -module "${NEW_MODULE}"
+  # "<module>/..." in Go imports, buf go_package prefix, example proto
+  # go_package, Makefile and docs. Not preceded by a path character, so e.g.
+  # ".../go-microservice-template/..." URLs are left alone.
+  substitute "${CURRENT_MODULE}/" "${NEW_MODULE}/" 's/(?<![A-Za-z0-9_.\/-])\Q$ENV{FROM}\E/$ENV{TO}/g'
 }
 
-rename_entrypoint() {
-  local from="cmd/${CURRENT_BASE}.go"
-  local to="cmd/${NEW_BASE}.go"
+update_binary_name() {
+  local from="cmd/${CURRENT_BASE}.go" to="cmd/${NEW_BASE}.go"
   if [[ -f "${from}" && "${from}" != "${to}" ]]; then
-    mv "${from}" "${to}"
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git ls-files --error-unmatch "${from}" >/dev/null 2>&1; then
+      git mv "${from}" "${to}"
+    else
+      mv "${from}" "${to}"
+    fi
+    echo "${to}" >> "${FILE_LIST}"
   fi
-}
 
-update_cli_use() {
-  local file="cmd/root/root.go"
-  if [[ -f "${file}" ]]; then
-    perl -pi -e "s|Use: \"\Q${CURRENT_BASE}\E\"|Use: \"${NEW_BASE}\"|" "${file}"
-  fi
-}
+  perl -pi -e "s|^APP:=.+\$|APP:=${NEW_BASE}|; s|^APP_ENTRY_POINT:=cmd/.+\$|APP_ENTRY_POINT:=cmd/${NEW_BASE}.go|" Makefile
 
-update_http_api_struct() {
-  local file="internal/http/module.go"
-  [[ -f "${file}" ]] || return 0
+  # Binary name as a whole word: Dockerfile COPY/ENTRYPOINT, .gitignore,
+  # cobra command name, docker-compose, docs.
+  substitute "${CURRENT_BASE}" "${NEW_BASE}" 's/(?<![A-Za-z0-9_.-])\Q$ENV{FROM}\E(?![A-Za-z0-9_-])/$ENV{TO}/g'
 
-  # Update swagger API struct/type names to match new APP (go-swagger generates <PascalBase>APIAPI)
-  perl -pi -e "s|operations\\.New[[:alnum:]]+APIAPI|operations.New${API_STRUCT_NAME}|g" "${file}"
-  perl -pi -e "s|\*operations\.[[:alnum:]]+APIAPI|*operations.${API_STRUCT_NAME}|g" "${file}"
-}
-
-update_dockerfile() {
-  local file="Dockerfile"
-  [[ -f "${file}" ]] || return 0
-  local docker_name
-  docker_name=$(perl -ne 'if(/ENTRYPOINT \["\/(.+?)"/){print $1; exit}' "${file}")
-  docker_name=${docker_name:-${CURRENT_BASE}}
-  perl -pi -e "s|/app/\Q${docker_name}\E|/app/${NEW_BASE}|g; s|\"/\Q${docker_name}\E\"|\"/${NEW_BASE}\"|g" "${file}"
-}
-
-update_docs() {
-  for file in README.md AGENTS.md; do
-    [[ -f "${file}" ]] || continue
-    perl -pi -e "s|go-\Q${CURRENT_BASE}\E|go-${NEW_BASE}|g" "${file}"
-    perl -pi -e "s|\Q${CURRENT_MODULE}\E|${NEW_MODULE}|g" "${file}"
-    perl -pi -e "s|\Q${CURRENT_BASE}\E|${NEW_BASE}|g" "${file}"
-  done
+  # Development database name (docker-compose, Makefile, config defaults, docs).
+  substitute "${CURRENT_DB}" "${NEW_DB}" 's/\Q$ENV{FROM}\E/$ENV{TO}/g'
 }
 
 update_git_remote() {
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    return
-  fi
-
   NEW_REMOTE=${NEW_REMOTE:-}
-
-  if [[ -z "${NEW_REMOTE}" ]]; then
+  if [[ -z "${NEW_REMOTE}" ]] || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     return
   fi
 
@@ -145,22 +151,22 @@ update_git_remote() {
   fi
 }
 
-run_go_mod_tidy() {
-  if command -v go >/dev/null 2>&1; then
-    go mod tidy
+regenerate() {
+  # Old generated code carries the old module path / API type name: drop it.
+  make --no-print-directory clean-generated
+  if [[ "${SKIP_GENERATE:-}" == "1" ]]; then
+    echo "SKIP_GENERATE=1: run 'make generate' before building"
+    return
   fi
+  make --no-print-directory generate
+  go mod tidy
 }
 
-update_go_mod
-update_go_imports
-update_makefile
-rename_entrypoint
-update_cli_use
-update_dockerfile
-update_docs
-update_http_api_struct
+list_text_files
+update_module_path
+update_binary_name
 update_git_remote
-run_go_mod_tidy
+regenerate
 
 echo ""
-echo "Rename complete. Review changes with 'git diff'."
+echo "Rename complete. Review changes with 'git diff' and run 'go build ./... && go test ./...'."

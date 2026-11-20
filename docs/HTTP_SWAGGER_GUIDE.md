@@ -124,10 +124,13 @@ http:
   
   rate_limit:
     enabled: true
-    requests_per_sec: 100.0
+    requests_per_sec: 100.0   # per client IP
     burst: 20
+    idle_ttl: "5m"            # evict limiters of idle clients
+    trusted_proxies:          # honor X-Forwarded-For only from these peers
+      - "10.0.0.0/8"
   
-  gatekeeper:
+  auth_service:
     address: "localhost:9091"
     timeout: "5s"
 ```
@@ -152,10 +155,12 @@ HTTP_CORS_ALLOWED_ORIGINS="https://myapp.com,https://app.myapp.com"
 HTTP_RATE_LIMIT_ENABLED=true
 HTTP_RATE_LIMIT_REQUESTS_PER_SEC=100.0
 HTTP_RATE_LIMIT_BURST=20
+HTTP_RATE_LIMIT_IDLE_TTL="5m"
+HTTP_RATE_LIMIT_TRUSTED_PROXIES="10.0.0.0/8,192.0.2.10"
 
-# Gatekeeper
-HTTP_GATEKEEPER_ADDRESS="localhost:9091"
-HTTP_GATEKEEPER_TIMEOUT="5s"
+# Auth service
+HTTP_AUTH_SERVICE_ADDRESS="localhost:9091"
+HTTP_AUTH_SERVICE_TIMEOUT="5s"
 ```
 
 ### Configuration Options
@@ -177,8 +182,20 @@ HTTP_GATEKEEPER_TIMEOUT="5s"
 | `rate_limit.enabled` | bool | false | Enable rate limiting |
 | `rate_limit.requests_per_sec` | float64 | 100.0 | Requests per second |
 | `rate_limit.burst` | int | 20 | Burst size |
-| `gatekeeper.address` | string | "localhost:9091" | Gatekeeper gRPC address |
-| `gatekeeper.timeout` | string | "5s" | Gatekeeper request timeout |
+| `rate_limit.idle_ttl` | string | "5m" | Evict per-client limiters idle this long |
+| `rate_limit.trusted_proxies` | []string | [] | Proxy IPs/CIDRs whose `X-Forwarded-For` is honored |
+
+Rate limiting is keyed on the client IP: the port of the TCP peer is ignored, and
+`X-Forwarded-For` is only used when the peer is a trusted proxy, in which case the client is the
+right-most hop that is not itself a trusted proxy (left-most entries are client-controlled and
+ignored). Health endpoints are exempt.
+
+### Health endpoints
+
+`GET /api/v1/health` (from the spec) and the unversioned alias `GET /health` return 200 when every
+registered module's `HealthCheck` passes and 503 (listing the failing modules) otherwise.
+| `auth_service.address` | string | "localhost:9091" | Auth service gRPC address |
+| `auth_service.timeout` | string | "5s" | Auth service request timeout |
 
 ## Swagger Specification
 
@@ -527,7 +544,7 @@ HTTP GET /users?email=notfound@example.com 404 12.3ms
 
 ### CORS Middleware
 
-Configure CORS in `config.yaml`:
+Configure CORS in the config file (see README, "Enabling Modules") or via env vars:
 
 ```yaml
 http:
@@ -564,7 +581,7 @@ Returns `429 Too Many Requests` when limit exceeded.
 
 ### Mock Mode (Development)
 
-For local development without gatekeeper:
+For local development without the auth service:
 
 ```yaml
 http:
@@ -577,12 +594,12 @@ Mock mode returns a test user for any Bearer token:
 - Name: `Test User`
 - Status: `active`
 
-### Gatekeeper Integration
+### Auth Service Integration
 
 See detailed TODO in `internal/http/auth/auth.go` for integration steps.
 
 **Summary**:
-1. Add gatekeeper gRPC client dependency
+1. Add auth service gRPC client dependency
 2. Initialize client in `NewAuth()`
 3. Call `ValidateToken()` in `CheckAuth()`
 4. Handle errors (invalid, expired, network)
@@ -815,13 +832,13 @@ http:
   timeout: "30s"
   mock_auth: false
   admin_emails:
-    - "admin@company.com"
+    - "admin@example.com"
   
   cors:
     enabled: true
     allowed_origins:
-      - "https://app.company.com"
-      - "https://admin.company.com"
+      - "https://app.example.com"
+      - "https://admin.example.com"
     allowed_methods:
       - "GET"
       - "POST"
@@ -838,8 +855,8 @@ http:
     requests_per_sec: 1000.0
     burst: 50
   
-  gatekeeper:
-    address: "gatekeeper.company.internal:9091"
+  auth_service:
+    address: "auth-service.internal:9091"
     timeout: "5s"
 ```
 

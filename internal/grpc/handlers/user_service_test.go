@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/internal/models"
 	"microservice-template/internal/service"
-	proto "microservice-template/protocols/userservice"
 )
 
 // mockService is a mock implementation of service.IService for testing.

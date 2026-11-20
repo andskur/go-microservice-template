@@ -1,8 +1,10 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -20,7 +22,7 @@ type Server struct {
 	health   *health.Server
 	listener net.Listener
 	addr     string
-	running  bool
+	running  atomic.Bool
 }
 
 // NewServer creates a new gRPC server instance with configured middleware.
@@ -32,7 +34,7 @@ func NewServer(cfg *config.GRPCConfig) (*Server, error) {
 		return nil, fmt.Errorf("parse timeout: %w", err)
 	}
 
-	listener, err := net.Listen("tcp", addr)
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
@@ -71,7 +73,6 @@ func NewServer(cfg *config.GRPCConfig) (*Server, error) {
 		addr:     addr,
 		listener: listener,
 		server:   server,
-		running:  false,
 	}, nil
 }
 
@@ -88,7 +89,7 @@ func (s *Server) RegisterHealthService() error {
 
 // Serve starts the gRPC server (blocking).
 func (s *Server) Serve() error {
-	defer func() { s.running = false }()
+	defer s.running.Store(false)
 
 	logger.Log().Infof("grpc server listening on %s", s.addr)
 
@@ -113,10 +114,10 @@ func (s *Server) Server() *grpc.Server {
 
 // IsRunning returns true if server is currently running.
 func (s *Server) IsRunning() bool {
-	return s.running
+	return s.running.Load()
 }
 
 // MarkRunning marks the server as running (used when Serve starts in a goroutine).
 func (s *Server) MarkRunning() {
-	s.running = true
+	s.running.Store(true)
 }

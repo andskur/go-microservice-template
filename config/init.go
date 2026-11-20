@@ -29,7 +29,7 @@ func setDefaults() {
 	viper.SetDefault("database.conn_max_lifetime", 300)
 	viper.SetDefault("database.user", "dev")
 	viper.SetDefault("database.password", "dev")
-	viper.SetDefault("database.name", "microservices_dev")
+	viper.SetDefault("database.name", "microservice_template_dev")
 
 	// gRPC module defaults
 	viper.SetDefault("grpc.enabled", false)
@@ -68,10 +68,12 @@ func setDefaults() {
 	viper.SetDefault("http.rate_limit.enabled", false)
 	viper.SetDefault("http.rate_limit.requests_per_sec", 100.0)
 	viper.SetDefault("http.rate_limit.burst", 20)
+	viper.SetDefault("http.rate_limit.idle_ttl", "5m")
+	viper.SetDefault("http.rate_limit.trusted_proxies", []string{})
 
-	// Gatekeeper defaults (for future use)
-	viper.SetDefault("http.gatekeeper.address", "localhost:9091")
-	viper.SetDefault("http.gatekeeper.timeout", "5s")
+	// Auth service defaults (for future use)
+	viper.SetDefault("http.auth_service.address", "localhost:9091")
+	viper.SetDefault("http.auth_service.timeout", "5s")
 
 	// WebSocket module defaults
 	viper.SetDefault("websocket.enabled", false)
