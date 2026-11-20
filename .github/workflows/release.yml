@@ -19,7 +19,7 @@ jobs:
       next_tag: ${{ steps.next_tag.outputs.next_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -29,43 +29,15 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: "1.24"
+          go-version: "1.26.11"
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Install proto tools
-        run: make proto-install
-
-      - name: Generate protos
-        run: make proto-generate-all
-
-      - name: Install golangci-lint
-        run: make lint-install
-
-      - name: Install go-swagger
-        run: make swagger-install
+      - name: Generate code
+        run: make generate
 
       - name: Validate Swagger spec
         run: make swagger-validate
-
-      - name: Generate API code
-        run: make generate-api
 
       - name: Run CI checks (lint)
         run: make lint
@@ -75,6 +47,9 @@ jobs:
 
       - name: Run CI checks (build)
         run: make build
+
+      - name: Run CI checks (vulnerabilities)
+        run: make vuln
 
       - name: Determine next tag (semantic)
         id: next_tag
@@ -134,12 +109,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ needs.prepare.outputs.next_tag }}
           generate_release_notes: true
