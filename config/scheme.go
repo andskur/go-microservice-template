@@ -30,9 +30,9 @@ type KeepAliveConfig struct {
 // HTTPConfig holds HTTP server settings.
 type HTTPConfig struct {
 	// Pointers first to reduce padding.
-	CORS       *CORSConfig       `mapstructure:"cors"`       // CORS settings
-	RateLimit  *RateLimitConfig  `mapstructure:"rate_limit"` // Rate limiting
-	Gatekeeper *GatekeeperConfig `mapstructure:"gatekeeper"` // Gatekeeper configuration (JWT validation service)
+	CORS        *CORSConfig        `mapstructure:"cors"`         // CORS settings
+	RateLimit   *RateLimitConfig   `mapstructure:"rate_limit"`   // Rate limiting
+	AuthService *AuthServiceConfig `mapstructure:"auth_service"` // External auth service (JWT validation)
 
 	Host        string   `mapstructure:"host"`         // Server host (e.g., "0.0.0.0" or "localhost")
 	Timeout     string   `mapstructure:"timeout"`      // Request timeout (e.g., "30s")
@@ -41,7 +41,7 @@ type HTTPConfig struct {
 	Port        int      `mapstructure:"port"`         // Server port (e.g., 8080)
 
 	Enabled  bool `mapstructure:"enabled"`   // Enable HTTP module
-	MockAuth bool `mapstructure:"mock_auth"` // Enable mock auth for testing (bypasses gatekeeper)
+	MockAuth bool `mapstructure:"mock_auth"` // Enable mock auth for testing (bypasses the auth service)
 }
 
 // CORSConfig holds CORS settings.
@@ -55,13 +55,18 @@ type CORSConfig struct {
 
 // RateLimitConfig holds rate limiting settings.
 type RateLimitConfig struct {
-	Enabled        bool    `mapstructure:"enabled"`          // Enable rate limiting middleware
-	RequestsPerSec float64 `mapstructure:"requests_per_sec"` // Requests per second (e.g., 100.0)
-	Burst          int     `mapstructure:"burst"`            // Burst size (e.g., 20)
+	IdleTTL string `mapstructure:"idle_ttl"` // Evict per-client limiters idle this long (e.g., "5m")
+	// TrustedProxies lists proxy IPs/CIDRs (e.g. the load balancer subnet) whose
+	// X-Forwarded-For header is honored. Empty = always key on the TCP peer.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
+	// RequestsPerSec is the sustained request rate per client IP (e.g., 100.0).
+	RequestsPerSec float64 `mapstructure:"requests_per_sec"`
+	Burst          int     `mapstructure:"burst"`   // Burst size (e.g., 20)
+	Enabled        bool    `mapstructure:"enabled"` // Enable rate limiting middleware
 }
 
-// GatekeeperConfig holds gatekeeper service settings.
-type GatekeeperConfig struct {
+// AuthServiceConfig holds settings for the external auth (JWT validation) service.
+type AuthServiceConfig struct {
 	Address string `mapstructure:"address"` // gRPC address (e.g., "localhost:9091")
 	Timeout string `mapstructure:"timeout"` // Request timeout (e.g., "5s")
 }

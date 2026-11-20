@@ -61,12 +61,12 @@ func (c *Client) ID() string {
 
 // Send queues a message to be sent to the client.
 func (c *Client) Send(data []byte) bool {
+	// Hold the read lock while sending so Close cannot close c.send concurrently.
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.closed {
-		c.mu.RUnlock()
 		return false
 	}
-	c.mu.RUnlock()
 
 	select {
 	case c.send <- data:
@@ -142,9 +142,9 @@ func (c *Client) Close() {
 		return
 	}
 	c.closed = true
+	close(c.send)
 	c.mu.Unlock()
 
-	close(c.send)
 	c.conn.Close() //nolint:errcheck // Best effort close
 }
 

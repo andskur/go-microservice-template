@@ -4,7 +4,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -125,6 +124,7 @@ func (app *App) registerModules() error {
 
 		// Pass grpcClient to HTTP module (can be nil)
 		httpModule := httpmod.NewModule(app.config.HTTP, app.svc, grpcClientModule)
+		httpModule.SetHealthChecker(app.modules.HealthCheckAll)
 		app.modules.Register(httpModule)
 
 		// Initialize HTTP module
@@ -163,25 +163,32 @@ func (app *App) registerModules() error {
 	return nil
 }
 
-// Serve starts all modules and waits for shutdown signal.
+// Serve starts all modules and blocks until a shutdown signal is received
+// (returns nil) or a module fails at runtime (returns the error, so the
+// process exits non-zero). The caller is responsible for calling Stop.
 func (app *App) Serve() error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
 
-	// Start all modules
+	return app.serve(ctx)
+}
+
+// serve starts all modules and waits for ctx to be done or a module to fail.
+func (app *App) serve(ctx context.Context) error {
 	if err := app.modules.StartAll(ctx); err != nil {
 		return fmt.Errorf("start modules: %w", err)
 	}
 
 	logger.Log().Info("application is running, press Ctrl+C to stop")
 
-	// Wait for shutdown signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	<-quit
-	logger.Log().Info("shutdown signal received, stopping gracefully...")
-
-	return nil
+	select {
+	case <-ctx.Done():
+		logger.Log().Info("shutdown signal received, stopping gracefully...")
+		return nil
+	case err := <-app.modules.Fatal():
+		logger.Log().Errorf("stopping application: %v", err)
+		return err
+	}
 }
 
 // Stop gracefully shuts down all modules.

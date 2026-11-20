@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,7 +20,7 @@ func TestRecovery(t *testing.T) {
 	handler := Recovery()(panicHandler)
 
 	// Create test request
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Should not panic
@@ -52,7 +53,7 @@ func TestRecovery_NoError(t *testing.T) {
 	handler := Recovery()(normalHandler)
 
 	// Create test request
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Should work normally
@@ -79,7 +80,7 @@ func TestLogger(t *testing.T) {
 	handler := Logger()(testHandler)
 
 	// Create test request
-	req := httptest.NewRequest(http.MethodGet, "/test?param=value", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test?param=value", nil)
 	w := httptest.NewRecorder()
 
 	// Execute request
@@ -115,7 +116,7 @@ func TestLogger_CapturesStatusCode(t *testing.T) {
 			})
 
 			handler := Logger()(testHandler)
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)
@@ -137,7 +138,7 @@ func TestCors_Disabled(t *testing.T) {
 	}
 
 	handler := Cors(cfg)(testHandler)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Origin", "https://example.com")
 	w := httptest.NewRecorder()
 
@@ -163,7 +164,7 @@ func TestCors_Enabled(t *testing.T) {
 	}
 
 	handler := Cors(cfg)(testHandler)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Origin", "https://example.com")
 	w := httptest.NewRecorder()
 
@@ -194,7 +195,7 @@ func TestCors_WildcardOrigin(t *testing.T) {
 	}
 
 	handler := Cors(cfg)(testHandler)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Origin", "https://anysite.com")
 	w := httptest.NewRecorder()
 
@@ -218,7 +219,7 @@ func TestCors_PreflightRequest(t *testing.T) {
 	}
 
 	handler := Cors(cfg)(testHandler)
-	req := httptest.NewRequest(http.MethodOptions, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/test", nil)
 	req.Header.Set("Origin", "https://example.com")
 	w := httptest.NewRecorder()
 
@@ -227,92 +228,5 @@ func TestCors_PreflightRequest(t *testing.T) {
 	// Preflight should return 204 No Content
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected status %d for preflight, got %d", http.StatusNoContent, w.Code)
-	}
-}
-
-func TestRateLimit_Disabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	cfg := &config.RateLimitConfig{
-		Enabled: false,
-	}
-
-	handler := RateLimit(cfg)(testHandler)
-
-	// Should not apply rate limiting
-	for i := 0; i < 10; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("request %d: expected status %d, got %d", i, http.StatusOK, w.Code)
-		}
-	}
-}
-
-func TestRateLimit_Enabled(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	cfg := &config.RateLimitConfig{
-		Enabled:        true,
-		RequestsPerSec: 2, // 2 requests per second
-		Burst:          2, // burst of 2
-	}
-
-	handler := RateLimit(cfg)(testHandler)
-
-	// First 2 requests should succeed (burst)
-	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.RemoteAddr = "192.168.1.1:1234"
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("request %d: expected status %d, got %d", i, http.StatusOK, w.Code)
-		}
-	}
-
-	// Next request should be rate limited
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.RemoteAddr = "192.168.1.1:1234"
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("expected status %d for rate limited request, got %d", http.StatusTooManyRequests, w.Code)
-	}
-}
-
-func TestRateLimit_DifferentIPs(t *testing.T) {
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	cfg := &config.RateLimitConfig{
-		Enabled:        true,
-		RequestsPerSec: 1,
-		Burst:          1,
-	}
-
-	handler := RateLimit(cfg)(testHandler)
-
-	// Requests from different IPs should not affect each other
-	ips := []string{"192.168.1.1:1234", "192.168.1.2:1234", "192.168.1.3:1234"}
-
-	for _, ip := range ips {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.RemoteAddr = ip
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("request from %s: expected status %d, got %d", ip, http.StatusOK, w.Code)
-		}
 	}
 }

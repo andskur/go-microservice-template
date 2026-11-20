@@ -37,7 +37,7 @@ func NewAuth(svc service.IService, mocked bool, adminEmails []string) *Auth {
 // CheckAuth validates JWT token and returns user principal.
 func (a *Auth) CheckAuth(token string) (*models.User, error) {
 	if a.mocked {
-		logger.Log().Info("using mock authentication (bypassing gatekeeper)")
+		logger.Log().Info("using mock authentication (bypassing the auth service)")
 		return a.mockUser(), nil
 	}
 
@@ -48,8 +48,8 @@ func (a *Auth) CheckAuth(token string) (*models.User, error) {
 
 	logger.Log().Info("checking authorization for token")
 
-	// TODO: Integrate with gatekeeper service for JWT token validation.
-	// For local development, set http.mock_auth=true to bypass gatekeeper validation.
+	// TODO: Integrate with auth service for JWT token validation.
+	// For local development, set http.mock_auth=true to bypass auth service validation.
 
 	return nil, errors.New(401, "unauthorized access or invalid credentials")
 }
@@ -60,7 +60,7 @@ func (a *Auth) IsAdmin(email string) bool {
 	return ok
 }
 
-// mockUser returns a mock user for testing without gatekeeper.
+// mockUser returns a mock user for testing without the auth service.
 func (a *Auth) mockUser() *models.User {
 	email := strfmt.Email("test@example.com")
 	name := "Test User"

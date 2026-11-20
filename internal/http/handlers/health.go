@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -9,23 +12,32 @@ import (
 
 	"microservice-template/internal/http/models"
 	"microservice-template/internal/http/server/operations/health"
+	"microservice-template/pkg/logger"
 	"microservice-template/pkg/version"
 )
 
-// NewHealth creates new Health handler.
-func NewHealth() *Health {
-	return &Health{}
+// healthCheckTimeout bounds how long the health endpoint waits for module checks.
+const healthCheckTimeout = 5 * time.Second
+
+// HealthChecker returns the health of every module, keyed by module name
+// (nil = healthy). module.Manager.HealthCheckAll satisfies it.
+type HealthChecker func(ctx context.Context) map[string]error
+
+// NewHealth creates new Health handler. A nil checker reports healthy.
+func NewHealth(check HealthChecker) *Health {
+	return &Health{check: check}
 }
 
-// Health handler checks service health.
-type Health struct{}
+// Health handler reports service health based on the registered modules.
+type Health struct {
+	check HealthChecker
+}
 
 // Handle Health endpoint.
-func (h *Health) Handle(_ health.GetHealthParams) middleware.Responder {
-	// TODO: Add actual health checks here
-	// - Check database connectivity (if database module enabled)
-	// - Check external dependencies
-	// - Check resource availability (disk space, memory, etc.)
+func (h *Health) Handle(params health.GetHealthParams) middleware.Responder {
+	if unhealthy := h.unhealthyModules(params.HTTPRequest); len(unhealthy) > 0 {
+		return h.HandleUnhealthy("unhealthy modules: " + strings.Join(unhealthy, ", "))
+	}
 
 	status := "healthy"
 	ver, _ := version.NewVersion()
@@ -33,15 +45,37 @@ func (h *Health) Handle(_ health.GetHealthParams) middleware.Responder {
 	if ver.Tag != "" {
 		versionStr += " " + ver.Tag
 	}
-	timestamp := strfmt.DateTime(time.Now())
 
-	healthResponse := &models.Health{
+	return health.NewGetHealthOK().WithPayload(&models.Health{
 		Status:    &status,
 		Version:   versionStr,
-		Timestamp: timestamp,
+		Timestamp: strfmt.DateTime(time.Now()),
+	})
+}
+
+// unhealthyModules runs the module checks and returns the failing module names.
+// Error details are logged, not returned to the caller.
+func (h *Health) unhealthyModules(r *http.Request) []string {
+	if h.check == nil {
+		return nil
 	}
 
-	return health.NewGetHealthOK().WithPayload(healthResponse)
+	ctx := context.Background()
+	if r != nil {
+		ctx = r.Context()
+	}
+	ctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
+	defer cancel()
+
+	var unhealthy []string
+	for name, err := range h.check(ctx) {
+		if err != nil {
+			logger.Log().Warnf("health check failed for module %s: %v", name, err)
+			unhealthy = append(unhealthy, name)
+		}
+	}
+	sort.Strings(unhealthy)
+	return unhealthy
 }
 
 // HandleUnhealthy returns unhealthy status (for testing or when checks fail).

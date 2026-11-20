@@ -3,6 +3,7 @@ package root
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -132,5 +133,74 @@ func TestBindFlagsSetsDefaultsFromViper(t *testing.T) {
 	}
 	if val != "from-viper" {
 		t.Fatalf("expected flag to be set from viper, got %q", val)
+	}
+}
+
+func writeConfigFile(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "config.yaml")
+	content := "env: file-env\nhttp:\n  port: 1234\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return path
+}
+
+func TestInitializeConfig_ReadsExplicitConfigFileAndEnvOverrides(t *testing.T) {
+	resetViper(t)
+	t.Cleanup(func() { resetViper(t) })
+	viper.SetDefault("http.port", 8080)
+
+	setConfigFile(writeConfigFile(t, t.TempDir()), "test")
+
+	cfg := &config.Scheme{}
+	if err := initializeConfig(newTestCmd(), cfg); err != nil {
+		t.Fatalf("initializeConfig returned error: %v", err)
+	}
+	if cfg.Env != "file-env" {
+		t.Fatalf("expected env from config file, got %q", cfg.Env)
+	}
+	if cfg.HTTP == nil || cfg.HTTP.Port != 1234 {
+		t.Fatalf("expected http.port 1234 from config file, got %+v", cfg.HTTP)
+	}
+
+	// Env vars override the config file.
+	t.Setenv("HTTP_PORT", "4321")
+	cfg = &config.Scheme{}
+	if err := initializeConfig(newTestCmd(), cfg); err != nil {
+		t.Fatalf("initializeConfig returned error: %v", err)
+	}
+	if cfg.HTTP == nil || cfg.HTTP.Port != 4321 {
+		t.Fatalf("expected http.port 4321 from env, got %+v", cfg.HTTP)
+	}
+}
+
+func TestInitializeConfig_FindsConfigInWorkingDir(t *testing.T) {
+	resetViper(t)
+	t.Cleanup(func() { resetViper(t) })
+
+	dir := t.TempDir()
+	writeConfigFile(t, dir)
+	t.Chdir(dir)
+
+	setConfigFile("", "test")
+
+	cfg := &config.Scheme{}
+	if err := initializeConfig(newTestCmd(), cfg); err != nil {
+		t.Fatalf("initializeConfig returned error: %v", err)
+	}
+	if cfg.Env != "file-env" {
+		t.Fatalf("expected env from ./config.yaml, got %q", cfg.Env)
+	}
+}
+
+func TestInitializeConfig_MissingExplicitConfigFileFails(t *testing.T) {
+	resetViper(t)
+	t.Cleanup(func() { resetViper(t) })
+
+	setConfigFile(filepath.Join(t.TempDir(), "missing.yaml"), "test")
+
+	if err := initializeConfig(newTestCmd(), &config.Scheme{}); err == nil {
+		t.Fatalf("expected error for missing explicit config file")
 	}
 }

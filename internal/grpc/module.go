@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/config"
 	"microservice-template/internal/grpc/handlers"
 	"microservice-template/internal/service"
 	"microservice-template/pkg/logger"
-	proto "microservice-template/protocols/userservice"
 )
 
 // Module implements module.Module interface for gRPC server.
@@ -16,6 +16,7 @@ type Module struct {
 	config  *config.GRPCConfig
 	service service.IService
 	server  *Server
+	failed  chan error
 }
 
 // NewModule creates a new gRPC module instance.
@@ -56,10 +57,13 @@ func (m *Module) Init(_ context.Context) error {
 // Start begins gRPC server operation (non-blocking).
 func (m *Module) Start(_ context.Context) error {
 	m.server.MarkRunning()
+	m.failed = make(chan error, 1)
 
 	go func() {
+		defer close(m.failed)
+		// Serve returns nil after GracefulStop/Stop; anything else is fatal.
 		if err := m.server.Serve(); err != nil {
-			logger.Log().Errorf("grpc server error: %v", err)
+			m.failed <- err
 		}
 	}()
 
@@ -67,13 +71,32 @@ func (m *Module) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop gracefully shuts down the gRPC server.
-func (m *Module) Stop(_ context.Context) error {
+// Failed reports fatal errors of the running server (see module.Failer).
+func (m *Module) Failed() <-chan error {
+	return m.failed
+}
+
+// Stop gracefully shuts down the gRPC server, forcing it closed when ctx expires.
+func (m *Module) Stop(ctx context.Context) error {
 	logger.Log().Infof("stopping %s module", m.Name())
 
-	if m.server != nil {
+	if m.server == nil {
+		return nil
+	}
+
+	done := make(chan struct{})
+	go func() {
 		m.server.GracefulStop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
 		logger.Log().Info("grpc server stopped gracefully")
+	case <-ctx.Done():
+		m.server.Server().Stop()
+		<-done
+		logger.Log().Warn("grpc server stop timed out; connections closed forcefully")
 	}
 
 	return nil

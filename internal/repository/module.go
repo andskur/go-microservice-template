@@ -2,7 +2,11 @@ package repository
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-pg/pg/v10"
 
@@ -32,20 +36,14 @@ func (m *Module) Name() string {
 
 // Init initializes the repository module and establishes database connection.
 func (m *Module) Init(_ context.Context) error {
-	logger.Log().Infof("initializing %s module with driver: %s on %s:%d with user %s", m.Name(), m.config.Driver, m.config.Host, m.config.Port, m.config.User)
+	logger.Log().Infof("initializing %s module with driver: %s on %s:%d (database %s, sslmode %s)",
+		m.Name(), m.config.Driver, m.config.Host, m.config.Port, m.config.Name, m.config.SSLMode)
 
-	fmt.Println(m.config.User)
-	fmt.Println(m.config.Password)
-	fmt.Println(m.config.Name)
-
-	db := pg.Connect(&pg.Options{
-		Addr:         fmt.Sprintf("%s:%d", m.config.Host, m.config.Port),
-		User:         m.config.User,
-		Password:     m.config.Password,
-		Database:     m.config.Name,
-		PoolSize:     m.config.MaxOpenConns,
-		MinIdleConns: m.config.MaxIdleConns,
-	})
+	opts, err := pgOptions(m.config)
+	if err != nil {
+		return fmt.Errorf("database options: %w", err)
+	}
+	db := pg.Connect(opts)
 
 	m.db = db
 	m.repo = NewPostgresRepository(db)
@@ -55,6 +53,70 @@ func (m *Module) Init(_ context.Context) error {
 	}
 
 	logger.Log().Infof("%s module initialized successfully", m.Name())
+	return nil
+}
+
+// pgOptions converts the database config into go-pg connection options.
+func pgOptions(cfg *config.DatabaseConfig) (*pg.Options, error) {
+	tlsConfig, err := tlsConfigForSSLMode(cfg.SSLMode, cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.ConnMaxLifetime < 0 {
+		return nil, fmt.Errorf("conn_max_lifetime must be >= 0 seconds, got %d", cfg.ConnMaxLifetime)
+	}
+
+	return &pg.Options{
+		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		User:         cfg.User,
+		Password:     cfg.Password,
+		Database:     cfg.Name,
+		TLSConfig:    tlsConfig,
+		PoolSize:     cfg.MaxOpenConns,
+		MinIdleConns: cfg.MaxIdleConns,
+		MaxConnAge:   time.Duration(cfg.ConnMaxLifetime) * time.Second, // 0 = connections are not recycled
+	}, nil
+}
+
+// tlsConfigForSSLMode maps libpq-style sslmode values to a TLS configuration.
+// Supported: disable, require (encrypt, no certificate verification),
+// verify-ca (verify the chain, not the host name) and verify-full.
+func tlsConfigForSSLMode(mode, host string) (*tls.Config, error) {
+	switch mode {
+	case "", "disable":
+		return nil, nil //nolint:nilnil // nil TLS config disables TLS in go-pg.
+	case "require":
+		return &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true, //nolint:gosec // sslmode=require encrypts without verifying the server, as in libpq.
+		}, nil
+	case "verify-ca":
+		return &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true, //nolint:gosec // chain is verified in VerifyConnection; only the host name check is skipped.
+			VerifyConnection:   verifyChainOnly,
+		}, nil
+	case "verify-full":
+		return &tls.Config{MinVersion: tls.VersionTLS12, ServerName: host}, nil
+	default:
+		return nil, fmt.Errorf("unsupported ssl_mode %q (use disable, require, verify-ca or verify-full)", mode)
+	}
+}
+
+// verifyChainOnly verifies the server certificate chain against the system roots
+// without checking the host name (libpq sslmode=verify-ca semantics).
+func verifyChainOnly(cs tls.ConnectionState) error {
+	if len(cs.PeerCertificates) == 0 {
+		return errors.New("server presented no certificate")
+	}
+	intermediates := x509.NewCertPool()
+	for _, cert := range cs.PeerCertificates[1:] {
+		intermediates.AddCert(cert)
+	}
+	if _, err := cs.PeerCertificates[0].Verify(x509.VerifyOptions{Intermediates: intermediates}); err != nil {
+		return fmt.Errorf("verify server certificate: %w", err)
+	}
 	return nil
 }
 

@@ -4,6 +4,7 @@ package root
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -21,14 +22,43 @@ func Cmd(app *internal.App) *cobra.Command {
 		Short:            "Service Template",
 		TraverseChildren: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			configFile, err := cmd.Flags().GetString(configFlag)
+			if err != nil {
+				return fmt.Errorf("read --%s flag: %w", configFlag, err)
+			}
+			setConfigFile(configFile, cmd.Root().Name())
 			return initializeConfig(cmd, app.Config())
 		},
 	}
+
+	cmd.PersistentFlags().String(configFlag, os.Getenv(configFileEnv),
+		"path to a config file (yaml, json, toml, ...); env: "+configFileEnv+
+			". Without it, an optional config.{yaml,json,toml} is searched in ., ./config and /etc/<name>")
 
 	cmd.Version = app.Version()
 	cmd.SetVersionTemplate("{{printf \"%s\" .Version}}\n")
 
 	return cmd
+}
+
+const (
+	configFlag    = "config"
+	configFileEnv = "CONFIG_FILE"
+)
+
+// setConfigFile tells viper where to find the config file.
+// An explicitly given file must exist; otherwise "config.<ext>" is looked up in
+// the working directory, ./config and /etc/<appName> and is optional.
+func setConfigFile(path, appName string) {
+	if path != "" {
+		viper.SetConfigFile(path)
+		return
+	}
+
+	viper.SetConfigName("config")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("./config")
+	viper.AddConfigPath("/etc/" + appName)
 }
 
 // initializeConfig reads in config file and sets configuration via environment variables.
