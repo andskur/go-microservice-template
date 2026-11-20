@@ -1,119 +1,114 @@
+# golangci-lint v2 configuration. The version is pinned in the Makefile
+# (GOLANGCI_LINT_VERSION) and used by CI via `make lint`.
+version: "2"
+
 run:
   timeout: 5m
 
-issues:
-  exclude-dirs:
-    - vendor
-    - internal/http/server
-    - internal/http/models
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*\\.gen\\.go$"
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - goconst
-    - path: internal/hmac/
-      text: "weak cryptographic primitive"
-      linters:
-        - gosec
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  new: false
-
 linters:
+  default: none
   enable:
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - revive
-    - misspell
     - bodyclose
     - dogsled
     - dupl
+    - errcheck
+    - errorlint
     - exhaustive
     - gochecknoinits
+    - gocognit
     - goconst
     - gocritic
     - gocyclo
+    - godot
     - goprintffuncname
     - gosec
+    - govet
+    - ineffassign
+    - misspell
     - nakedret
     - noctx
     - nolintlint
     - prealloc
+    - revive
     - rowserrcheck
     - sqlclosecheck
-    - errorlint
-    - godot
-    - gocognit
-  disable:
-    - varnamelen
-    - exhaustruct
-    - tagliatelle
+    - staticcheck
+    - unused
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  misspell:
-    locale: US
-  lll:
-    line-length: 120
-  nakedret:
-    max-func-lines: 30
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
-  nolintlint:
-    allow-unused: false
-    require-explanation: true
-    require-specific: true
-  revive:
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+    gocyclo:
+      min-complexity: 15
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    misspell:
+      locale: US
+    nakedret:
+      max-func-lines: 30
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    gosec:
+      excludes:
+        - G104
+
+  exclusions:
+    generated: lax
+    paths:
+      - vendor
+      - internal/http/server
+      - internal/http/models
+      - ".*\\.pb\\.go$"
+      - ".*\\.gen\\.go$"
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-  gosec:
-    excludes:
-      - G104
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - dupl
+          - gosec
+          - goconst
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
