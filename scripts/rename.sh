@@ -97,6 +97,7 @@ list_text_files() {
 substitute() {
   local from=$1 to=$2 expr=$3
   while IFS= read -r file; do
+    [[ -f "${file}" ]] || continue # e.g. the entrypoint before it was moved
     FROM="${from}" TO="${to}" perl -pi -e "${expr}" "${file}"
   done < "${FILE_LIST}"
 }
