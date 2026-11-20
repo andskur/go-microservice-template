@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
-	proto "microservice-template/protocols/userservice"
+	proto "microservice-template/api/proto/userservice"
 )
 
 // Client implements IUserServiceClient for external user service.

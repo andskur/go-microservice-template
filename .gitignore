@@ -18,18 +18,21 @@
 
 __debug_bin
 
-microservice-template
+# Service binary (built by `make build`)
+/microservice-template
+
+# Pinned tools installed by `make tools`
+/bin/
 
 # Template synchronization metadata (only in downstream repos)
 .template-version
 
 # TODO: add any required ignore patterns here
 
-# Generated protobuf outputs (kept locally, not committed)
+# Generated code (not committed; produced by `make generate`, also inside the Docker build)
 *.pb.go
 *_grpc.pb.go
 
-# Generated swagger/HTTP API code (kept locally, not committed)
 internal/http/server/
 internal/http/models/
 
@@ -40,5 +43,3 @@ internal/http/models/
 
 local
 
-
-microservice-template
