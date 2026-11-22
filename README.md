@@ -1,18 +1,20 @@
 # go-microservice-template
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 
 A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven versioning, logrus logging, Makefile targets, tests, and GitHub Actions CI/CD (lint/test/build on PRs/main plus auto-tagged releases on `main`). The structure is intentionally simple so you can plug in your runtime workloads quickly.
 
 ## Quickstart
-- Requirements: Go 1.21+ (module sets 1.23/1.24), GNU `make`.
+- Requirements: Go 1.26+, GNU `make`. Docker is optional (image build, `make lint-docker`).
 - Clone and create your branch: `git checkout -b feature/your-branch`.
+- Generate code: `make generate` (protobuf + swagger; generated code is not committed, see [Code generation](#code-generation)).
 - Build: `make build` (binary `./microservice-template`).
 - Run: `make run` (invokes `go run -race cmd/microservice-template.go serve`).
 - Version: `./microservice-template --version`.
-- Lint: `make lint` (golangci-lint).
-- Test: `make test` or single test `go test ./... -run TestName -count=1`.
+- Lint: `make lint` (pinned golangci-lint v2) or `make lint-docker` (same version in Docker).
+- Vulnerabilities: `make vuln` (pinned govulncheck; reachable vulnerabilities only).
+- Test: `make test` (race detector) or single test `go test ./... -run TestName -count=1`.
 - Generate + test: `make test-with-gen` (runs proto + swagger generation first).
 - Generate + lint: `make lint-with-gen` (runs proto + swagger generation first).
 - gRPC tests: `make test-grpc` (runs gRPC package including integration).
@@ -23,11 +25,11 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 - gRPC quickstart: see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md); enable with `GRPC_ENABLED=true`, test with grpcurl; use shared protocols from `https://github.com/andskur/protocols-template.git`.
 
 ### Renaming the project
-- Command: `make rename NEW_NAME=my-service` (required parameter).
-- Valid NEW_NAME: lowercase letters, numbers, hyphens, optional `/` segments (e.g., `my-service`, `github.com/yourorg/my-service`).
-- Updates: module path and imports, Makefile vars, entrypoint file, Cobra root `Use`, swagger API struct name, Dockerfile binary, README/AGENTS references, optional git remote.
-- After rename regenerate generated code: `make generate-all` (or at least `make generate-api` + proto generation as needed).
-- Verify after rename: `go test ./...`, `make build`, `./<new-binary> --version`.
+- Command: `make rename NEW_NAME=my-service` or `make rename NEW_NAME=github.com/your-org/my-service` (required parameter).
+- NEW_NAME is a Go module path (domains with dots and mixed-case path elements are fine); its last element becomes the binary name and must be lowercase letters, digits and hyphens.
+- Updates: module path and imports, Makefile vars, entrypoint file, Cobra root `Use`, Dockerfile (`COPY` and `ENTRYPOINT`), `.gitignore`/`.dockerignore` binary entries, dev database name (`<name>_dev` in docker-compose, Makefile, config defaults), example proto `go_package`, buf `go_package_prefix`, docs, optional git remote (`NEW_REMOTE=...`).
+- Generated code is never edited in place: rename deletes it and runs `make generate`, so the swagger API type always matches go-swagger's own naming (e.g. `ip-ratelimit` → `IPRatelimitAPIAPI`). Running `make generate` before or after `make rename` makes no difference.
+- Verify after rename: `go build ./... && go test -race ./...`, `docker build .`, `./<new-binary> --version`.
 
 ## Features
 - Simple, small footprint using standard libs plus Cobra/Viper/logrus.
@@ -44,7 +46,7 @@ A minimal Go microservice template with Cobra/Viper CLI wiring, ldflags-driven v
 ## Project Structure
 ```
 go-microservice-template/
-├── api/                        # Swagger/OpenAPI specifications
+├── api/                        # Swagger/OpenAPI spec + example protobuf API (api/proto)
 ├── cmd/                        # CLI entry + commands
 ├── config/                     # Viper defaults and scheme
 ├── db/migrations/              # Database migration files (golang-migrate)
@@ -58,8 +60,9 @@ go-microservice-template/
 │   ├── service/                # Business logic module
 │   └── models/                 # Domain models/enums
 ├── pkg/                        # Reusable packages (logger, version)
-├── protocols/                  # Protocol definitions pulled via subtree (no bundled example)
-├── scripts/                    # Automation scripts (rename)
+├── protocols/                  # (optional) shared protocols added via `make proto-setup` (git subtree)
+├── scripts/                    # Automation scripts (rename, swagger sync, template sync)
+├── buf.gen.yaml                # Codegen for ./protocols (go_package prefix override)
 ├── .github/workflows/          # CI/CD pipelines
 ├── Dockerfile                  # Multi-stage container build
 ├── docker-compose.yml          # Local stack (Postgres/app)
@@ -88,7 +91,12 @@ The template includes configuration placeholders for common modules:
 
 ### Enabling Modules
 
-Configuration can come from env vars (recommended) or a config file (`config.yaml` is optional). Viper merges: flags > env vars > config file.
+Configuration can come from env vars (recommended) or an optional config file. Precedence: flags > env vars > config file > defaults.
+
+Config file lookup:
+- `--config /path/to/file.yaml` (or `CONFIG_FILE=/path/to/file.yaml`): this file is read and must exist. Any format Viper supports (yaml, json, toml, ...).
+- Otherwise `config.{yaml,yml,json,toml,...}` is searched in `.`, `./config` and `/etc/<binary-name>`; it is optional.
+- Env vars always override values from the file (`http.rate_limit.burst` → `HTTP_RATE_LIMIT_BURST`).
 
 **Env example (preferred):**
 ```bash
@@ -122,7 +130,7 @@ The repository module requires PostgreSQL when enabled.
 docker run --name postgres-dev \
   -e POSTGRES_USER=dev \
   -e POSTGRES_PASSWORD=dev \
-  -e POSTGRES_DB=microservice_dev \
+  -e POSTGRES_DB=microservice_template_dev \
   -p 5432:5432 \
   -d postgres:16-alpine
 ```
@@ -170,12 +178,7 @@ For production deployments, run migrations before starting the application or us
 
 The HTTP module provides a REST API with Swagger/OpenAPI specification support using go-swagger.
 
-**Install go-swagger (one-time):**
-```bash
-make swagger-install
-```
-
-**Generate API server code from spec:**
+**Generate API server code from spec** (go-swagger is installed automatically at the pinned version):
 ```bash
 # Validate the swagger spec
 make swagger-validate
@@ -197,7 +200,8 @@ make run
 
 **Test the HTTP endpoints:**
 ```bash
-# Health check (public endpoint)
+# Health check (public endpoint; /health is an alias of /api/v1/health).
+# Returns 503 when any registered module's HealthCheck fails.
 curl http://localhost:8080/health
 
 # Get user by email (requires auth in production, mock mode for dev)
@@ -207,7 +211,6 @@ curl -H "Authorization: Bearer test-token" \
 
 **Available HTTP targets:**
 ```bash
-make swagger-install      # Install go-swagger CLI
 make swagger-validate     # Validate swagger spec
 make generate-api         # Generate server code from api/swagger.yaml
 make swagger-clean        # Remove generated code
@@ -220,8 +223,11 @@ make test-http           # Run HTTP module tests
 - `http.port` - Server port (default: 8080)
 - `http.mock_auth` - Use mock authentication for development (default: false)
 - `http.cors.enabled` - Enable CORS (default: true)
-- `http.rate_limit.enabled` - Enable rate limiting (default: false)
-- `http.rate_limit.requests_per_sec` - Rate limit (default: 100.0)
+- `http.rate_limit.enabled` - Enable per-client-IP rate limiting (default: false)
+- `http.rate_limit.requests_per_sec` / `http.rate_limit.burst` - Token bucket per client IP (default: 100.0 / 20)
+- `http.rate_limit.trusted_proxies` - Proxy IPs/CIDRs whose `X-Forwarded-For` is honored (default: none; the TCP peer IP is used). With trusted proxies, the client is the right-most `X-Forwarded-For` hop that is not a trusted proxy.
+- `http.rate_limit.idle_ttl` - Evict limiters of clients idle this long (default: 5m)
+- Health endpoints (`/health`, `/api/v1/health`) are never rate limited.
 
 For detailed HTTP development guide including adding new endpoints, authentication, and middleware, see [docs/HTTP_SWAGGER_GUIDE.md](./docs/HTTP_SWAGGER_GUIDE.md).
 
@@ -485,7 +491,7 @@ This is a basic, generic Go microservice template designed to provide a clear st
 - Root command name: `microservice-template`.
 - Subcommands: `serve` (current runtime hook). Add more via `cmd/<name>` and register on root.
 - Version output: `./microservice-template --version` (ldflags populate `pkg/version`).
-- `serve` lifecycle: `PreRun` logs version; `RunE` should start your workloads; `PostRun` always stops app.
+- `serve` lifecycle: `PreRun` logs version; `RunE` initializes and serves, and always stops the app on return (deferred). `serve` returns when a shutdown signal arrives (exit 0) or when a module's server fails at runtime (modules implementing `module.Failer`), in which case the process exits non-zero.
 - Adding a new command (example):
   ```go
   // cmd/health/health.go
@@ -508,16 +514,27 @@ This is a basic, generic Go microservice template designed to provide a clear st
 
 ## Development Workflow
 - Format: `gofmt` (used via go tooling).
-- Lint: `make lint` (golangci-lint; see `.golangci.yml`).
-- Tests: `make test` or `go test ./...`; single test example `go test ./cmd/root -run TestInitializeConfig -count=1`.
+- Lint: `make lint` (golangci-lint v2, version pinned in the Makefile; see `.golangci.yml`). If the pinned golangci-lint cannot run with your local Go toolchain, use `make lint-docker`.
+- Tests: `make test` (`go test -race ./...`); single test example `go test ./cmd/root -run TestInitializeConfig -count=1`.
 - Build: `make build` (CGO disabled; ldflags inject version info).
 - Deps: `make tidy` after changes; `make update` to bump modules.
 
 ## CI/CD
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
-  - CI (`ci.yml`): on PRs and `main`, runs `make lint`, `make test`, `make build` (Go 1.24) with module caching.
-  - Release (`release.yml`): on `main`, reruns lint/test/build, determines next incremental tag (`v1`, `v2`, …), pushes the tag, and creates a GitHub release with autogenerated notes (source-only). Uses `GITHUB_TOKEN`; no extra secrets needed.
-- Branch protection (recommended): require CI checks (`lint`, `test`, `build`) to pass before merging to `main` and limit direct pushes.
+  - CI (`ci.yml`): on PRs and `main`, with Go 1.26 and actions pinned by commit SHA, runs `make generate`, a `go mod tidy` check, swagger/buf validation, `make lint`, `make test` (race), `make build` and `make vuln`; a second job builds the Docker image (not published) and smoke-tests `/health`.
+  - Release (`release.yml`): on `main`, reruns generate/lint/test/build/vuln, determines next incremental tag (`v1`, `v2`, …), pushes the tag, and creates a GitHub release with autogenerated notes (source-only). Uses `GITHUB_TOKEN`; no extra secrets needed.
+- Branch protection (recommended): require the CI checks to pass before merging to `main` and limit direct pushes.
+
+## Code generation
+- Generated code (protobuf `*.pb.go`, `internal/http/server`, `internal/http/models`) is **not committed**. `make generate` is the single entry point and is used locally, in CI, by `make rename` and inside the Dockerfile, so `git clone && docker build .` works without any local tooling.
+- All tools are pinned in the Makefile (`SWAGGER_VERSION`, `BUF_VERSION`, `PROTOC_GEN_GO_VERSION`, `PROTOC_GEN_GO_GRPC_VERSION`, `MIGRATE_VERSION`, `GOLANGCI_LINT_VERSION`, `GOVULNCHECK_VERSION`) and installed into `./bin` on first use (`make tools`). Changing a version reinstalls it.
+- Protobuf is generated with `buf` and the local `protoc-gen-go`/`protoc-gen-go-grpc` plugins: no `protoc` and no network access to the Buf registry are needed.
+- `api/proto/` holds the bundled example gRPC API (`userservice`). Shared protocols live in `protocols/` (see [docs/GRPC_GUIDE.md](./docs/GRPC_GUIDE.md)); `buf.gen.yaml` rewrites their `go_package` so they are imported as `<module>/protocols/<path>`.
+
+## Docker
+- `docker build .` builds from a clean checkout: the builder stage (golang 1.26, pinned by digest) installs the pinned tools, runs `make generate` and `make build`; the runtime image is `scratch` running as an unprivileged user.
+- Example: `docker run -p 8080:8080 -e HTTP_ENABLED=true <image>` then `curl localhost:8080/health`.
+- To use a config file in the container: mount it and pass `--config`, e.g. `docker run -v $PWD/config.yaml:/config.yaml <image> serve --config /config.yaml`.
 
 ## Versioning
 - `Makefile` injects name/tag/commit/branch/remote/build date into `pkg/version` via ldflags.

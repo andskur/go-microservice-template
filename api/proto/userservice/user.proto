@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package userservice;
 
-option go_package = "microservice-template/protocols/userservice";
+option go_package = "microservice-template/api/proto/userservice";
 
 // UserService provides user management operations
 service UserService {

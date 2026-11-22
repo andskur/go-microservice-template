@@ -43,7 +43,7 @@ func TestModule_Name(t *testing.T) {
 }
 
 func TestModule_Lifecycle(t *testing.T) {
-	cfg := testConfig(18081)
+	cfg := testConfig(0)
 	mod := NewModule(cfg, nil)
 	ctx := context.Background()
 
@@ -257,7 +257,7 @@ func TestWebSocket_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	cfg := testConfig(18082)
+	cfg := testConfig(0)
 	mod := NewModule(cfg, nil)
 	ctx := context.Background()
 
@@ -274,7 +274,7 @@ func TestWebSocket_Integration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Test health endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:18082/health", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+mod.Server().Addr().String()+"/health", nil)
 	if err != nil {
 		t.Fatalf("create health check request failed: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestWebSocket_Integration(t *testing.T) {
 	}
 
 	// Connect WebSocket client
-	u := url.URL{Scheme: "ws", Host: "127.0.0.1:18082", Path: "/ws"}
+	u := url.URL{Scheme: "ws", Host: mod.Server().Addr().String(), Path: "/ws"}
 	conn, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
@@ -392,7 +392,7 @@ func TestWebSocket_ErrorHandling(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	cfg := testConfig(18083)
+	cfg := testConfig(0)
 	mod := NewModule(cfg, nil)
 	ctx := context.Background()
 
@@ -407,7 +407,7 @@ func TestWebSocket_ErrorHandling(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Connect
-	u := url.URL{Scheme: "ws", Host: "127.0.0.1:18083", Path: "/ws"}
+	u := url.URL{Scheme: "ws", Host: mod.Server().Addr().String(), Path: "/ws"}
 	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
@@ -499,7 +499,7 @@ func TestWebSocket_Ping(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	cfg := testConfig(18084)
+	cfg := testConfig(0)
 	mod := NewModule(cfg, nil)
 	ctx := context.Background()
 
@@ -514,7 +514,7 @@ func TestWebSocket_Ping(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Connect
-	u := url.URL{Scheme: "ws", Host: "127.0.0.1:18084", Path: "/ws"}
+	u := url.URL{Scheme: "ws", Host: mod.Server().Addr().String(), Path: "/ws"}
 	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)

@@ -10,6 +10,7 @@ import (
 
 // Manager orchestrates the lifecycle of registered modules.
 type Manager struct {
+	fatal   chan error
 	modules []Module
 	mu      sync.RWMutex
 }
@@ -18,6 +19,27 @@ type Manager struct {
 func NewManager() *Manager {
 	return &Manager{
 		modules: make([]Module, 0),
+		fatal:   make(chan error, 1),
+	}
+}
+
+// Fatal delivers the first fatal runtime error reported by a started module
+// that implements Failer (e.g. a server that stopped serving unexpectedly).
+func (m *Manager) Fatal() <-chan error {
+	return m.fatal
+}
+
+// watch forwards a module's runtime failures to the fatal channel.
+func (m *Manager) watch(mod Module, f Failer) {
+	for err := range f.Failed() {
+		if err == nil {
+			continue
+		}
+		logger.Log().Errorf("module %s failed: %v", mod.Name(), err)
+		select {
+		case m.fatal <- fmt.Errorf("module %s failed: %w", mod.Name(), err):
+		default: // a fatal error is already pending
+		}
 	}
 }
 
@@ -57,6 +79,9 @@ func (m *Manager) StartAll(ctx context.Context) error {
 		logger.Log().Infof("starting module: %s", mod.Name())
 		if err := mod.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start module %s: %w", mod.Name(), err)
+		}
+		if f, ok := mod.(Failer); ok {
+			go m.watch(mod, f)
 		}
 	}
 

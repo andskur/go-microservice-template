@@ -4,7 +4,7 @@ package userservice
 import (
 	"context"
 
-	proto "microservice-template/protocols/userservice"
+	proto "microservice-template/api/proto/userservice"
 )
 
 // IUserServiceClient defines the interface for user service client operations.

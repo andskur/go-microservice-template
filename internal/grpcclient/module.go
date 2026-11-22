@@ -10,11 +10,11 @@ import (
 	"github.com/gofrs/uuid"
 	"google.golang.org/grpc/keepalive"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/config"
 	"microservice-template/internal/models"
 	"microservice-template/pkg/logger"
 	"microservice-template/pkg/userservice"
-	proto "microservice-template/protocols/userservice"
 )
 
 // Module implements module.Module interface for gRPC client.

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -9,17 +7,17 @@ services:
     environment:
       POSTGRES_PASSWORD: dev
       POSTGRES_USER: dev
-      POSTGRES_DB: microservice_dev
+      POSTGRES_DB: microservice_template_dev
     volumes:
       - ./data/db/postgres:/var/lib/postgresql/data
 
   migrate:
-    image: migrate/migrate
+    image: migrate/migrate:v4.20.1
     depends_on:
       - postgres
     volumes:
       - ./db/migrations:/migrations
-    command: ["-path=/migrations", "-database", "postgres://dev:dev@postgres:5432/microservice_dev?sslmode=disable", "up"]
+    command: ["-path=/migrations", "-database", "postgres://dev:dev@postgres:5432/microservice_template_dev?sslmode=disable", "up"]
 
   app:
     build: .
@@ -36,7 +34,7 @@ services:
       DATABASE_PORT: 5432
       DATABASE_USER: dev
       DATABASE_PASSWORD: dev
-      DATABASE_NAME: microservice_dev
+      DATABASE_NAME: microservice_template_dev
       # HTTP REST API configuration
       HTTP_ENABLED: "true"
       HTTP_HOST: "0.0.0.0"

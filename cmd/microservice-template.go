@@ -18,7 +18,7 @@ import (
 func main() {
 	app, err := internal.NewApplication()
 	if err != nil {
-		logger.Log().Infof("An error occurred: %s", err.Error())
+		logger.Log().Errorf("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -26,7 +26,7 @@ func main() {
 	rootCmd.AddCommand(serve.Cmd(app))
 
 	if err = rootCmd.Execute(); err != nil {
-		logger.Log().Infof("An error occurred: %s", err.Error())
+		logger.Log().Errorf("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
 }

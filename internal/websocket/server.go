@@ -2,9 +2,11 @@ package websocket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,7 +24,8 @@ type Server struct {
 	server   *http.Server
 	upgrader *websocket.Upgrader
 	listener net.Listener
-	running  bool
+	failed   chan error
+	running  atomic.Bool
 
 	// Parsed durations from config.
 	pongWait     time.Duration
@@ -138,7 +141,7 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 
 	// Create listener
-	listener, err := net.Listen("tcp", addr)
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
@@ -148,16 +151,32 @@ func (s *Server) Start() error {
 	go s.hub.Run()
 
 	// Start HTTP server
-	s.running = true
+	s.failed = make(chan error, 1)
+	s.running.Store(true)
 	go func() {
-		logger.Log().Infof("WebSocket server listening on %s", addr)
-		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			logger.Log().Errorf("WebSocket server error: %v", err)
+		defer close(s.failed)
+		defer s.running.Store(false)
+
+		logger.Log().Infof("WebSocket server listening on %s", listener.Addr())
+		if err := s.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.failed <- fmt.Errorf("websocket server: %w", err)
 		}
-		s.running = false
 	}()
 
 	return nil
+}
+
+// Failed reports fatal errors of the running server.
+func (s *Server) Failed() <-chan error {
+	return s.failed
+}
+
+// Addr returns the address the server listens on (nil before Start).
+func (s *Server) Addr() net.Addr {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
 }
 
 // Stop gracefully stops the WebSocket server.
@@ -170,14 +189,14 @@ func (s *Server) Stop(ctx context.Context) error {
 		return fmt.Errorf("shutdown server: %w", err)
 	}
 
-	s.running = false
+	s.running.Store(false)
 	logger.Log().Info("WebSocket server stopped")
 	return nil
 }
 
 // IsRunning returns true if the server is running.
 func (s *Server) IsRunning() bool {
-	return s.running
+	return s.running.Load()
 }
 
 // Hub returns the server's hub.

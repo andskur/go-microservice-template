@@ -16,7 +16,19 @@ func Cmd(app *internal.App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
 		Short: "Run Application",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			// Stop runs on every exit path (cobra skips PostRun when RunE fails),
+			// so modules initialized before a failure are shut down too.
+			defer func() {
+				if stopErr := app.Stop(); stopErr != nil {
+					logger.Log().Errorf("stop app: %v", stopErr)
+					if err == nil {
+						err = fmt.Errorf("stop app: %w", stopErr)
+					}
+				}
+				logger.Log().Info("App stopped")
+			}()
+
 			if err := app.Init(); err != nil {
 				return fmt.Errorf("application initialisation: %w", err)
 			}
@@ -25,13 +37,6 @@ func Cmd(app *internal.App) *cobra.Command {
 		},
 		PreRun: func(_ *cobra.Command, _ []string) {
 			logger.Log().Info(app.Version())
-		},
-		PostRun: func(_ *cobra.Command, _ []string) {
-			// PostRun is used so Stop executes even if RunE errors; Cobra always calls PostRun.
-			if err := app.Stop(); err != nil {
-				logger.Log().Errorf("cant stop app")
-			}
-			logger.Log().Info("App stopped")
 		},
 	}
 }

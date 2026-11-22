@@ -34,6 +34,9 @@ type Hub struct {
 	// Done channel for graceful shutdown.
 	done chan struct{}
 
+	// Ensures done is closed only once.
+	stopOnce sync.Once
+
 	// Mutex for clients map.
 	mu sync.RWMutex
 
@@ -178,14 +181,22 @@ func (h *Hub) handleShutdown() {
 	logger.Log().Info("hub shutdown complete")
 }
 
-// Register adds a client to the hub.
+// Register adds a client to the hub. It is a no-op once the hub is stopped.
 func (h *Hub) Register(client *Client) {
-	h.register <- client
+	select {
+	case h.register <- client:
+	case <-h.done:
+		client.Close()
+	}
 }
 
-// Unregister removes a client from the hub.
+// Unregister removes a client from the hub. It is a no-op once the hub is stopped
+// (shutdown already closed and removed all clients).
 func (h *Hub) Unregister(client *Client) {
-	h.unregister <- client
+	select {
+	case h.unregister <- client:
+	case <-h.done:
+	}
 }
 
 // Broadcast sends a message to all connected clients.
@@ -253,7 +264,7 @@ func (h *Hub) LeaveRoom(client *Client, roomName string) error {
 
 // Stop signals the hub to stop.
 func (h *Hub) Stop() {
-	close(h.done)
+	h.stopOnce.Do(func() { close(h.done) })
 }
 
 // IsRunning returns true if the hub is running.

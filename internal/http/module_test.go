@@ -2,6 +2,10 @@ package http
 
 import (
 	"context"
+	"errors"
+	"net"
+	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -184,57 +188,118 @@ func TestModule_Init_InvalidHostOrPort(t *testing.T) {
 	})
 }
 
-func TestModule_Lifecycle(t *testing.T) {
-	t.Skip("Skipping lifecycle test - go-swagger generated server doesn't shut down gracefully in tests")
-
-	cfg := &config.HTTPConfig{
-		Host:        "localhost",
-		Port:        18080, // Use different port to avoid conflicts
-		Timeout:     "30s",
-		SwaggerSpec: "./api/swagger.yaml",
+func lifecycleConfig() *config.HTTPConfig {
+	return &config.HTTPConfig{
+		Host:        "127.0.0.1",
+		Port:        0, // ephemeral port
+		Timeout:     "5s",
 		MockAuth:    true,
 		AdminEmails: []string{},
-		CORS: &config.CORSConfig{
-			Enabled: false,
-		},
-		RateLimit: &config.RateLimitConfig{
-			Enabled: false,
-		},
+		CORS:        &config.CORSConfig{Enabled: false},
+		RateLimit:   &config.RateLimitConfig{Enabled: true, RequestsPerSec: 1, Burst: 1},
 	}
+}
 
-	svc := &mockService{}
-	module := NewModule(cfg, svc, nil)
+// testClient does not keep connections alive, so no idle (or speculatively
+// dialed, never used) connection delays the graceful shutdown in Stop.
+var testClient = &http.Client{Transport: &http.Transport{DisableKeepAlives: true}, Timeout: 5 * time.Second}
+
+func get(t *testing.T, url string) int {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := testClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestModule_Lifecycle(t *testing.T) {
+	module := NewModule(lifecycleConfig(), &mockService{}, nil)
+
+	var unhealthy atomic.Bool
+	module.SetHealthChecker(func(_ context.Context) map[string]error {
+		if unhealthy.Load() {
+			return map[string]error{"repository": errors.New("db down"), "http": nil}
+		}
+		return map[string]error{"repository": nil, "http": nil}
+	})
 
 	ctx := context.Background()
-
-	// Test Init
-	err := module.Init(ctx)
-	if err != nil {
+	if err := module.Init(ctx); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
-
-	// Test Start (non-blocking)
-	err = module.Start(ctx)
-	if err != nil {
+	if err := module.HealthCheck(ctx); err == nil {
+		t.Error("expected HealthCheck to fail before Start")
+	}
+	if err := module.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	// Give server time to start
-	time.Sleep(200 * time.Millisecond)
+	base := "http://" + module.Addr().String()
 
-	// Test HealthCheck
-	err = module.HealthCheck(ctx)
-	if err != nil {
+	if err := module.HealthCheck(ctx); err != nil {
 		t.Errorf("HealthCheck failed: %v", err)
 	}
 
-	// Test Stop
+	// Both health paths respond and are exempt from rate limiting (burst 1).
+	for i := 0; i < 3; i++ {
+		for _, p := range []string{"/health", "/api/v1/health"} {
+			if code := get(t, base+p); code != http.StatusOK {
+				t.Fatalf("GET %s #%d: got %d, want 200", p, i, code)
+			}
+		}
+	}
+
+	// Health reflects module health checks.
+	unhealthy.Store(true)
+	for _, p := range []string{"/health", "/api/v1/health"} {
+		if code := get(t, base+p); code != http.StatusServiceUnavailable {
+			t.Fatalf("GET %s with failing module: got %d, want 503", p, code)
+		}
+	}
+
 	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	err = module.Stop(stopCtx)
-	if err != nil {
+	if err := module.Stop(stopCtx); err != nil {
 		t.Errorf("Stop failed: %v", err)
+	}
+
+	// The serve goroutine ends cleanly: Failed is closed without an error.
+	select {
+	case err, ok := <-module.Failed():
+		if ok {
+			t.Fatalf("unexpected failure after Stop: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Failed channel not closed after Stop")
+	}
+}
+
+func TestModule_StartFailsWhenPortInUse(t *testing.T) {
+	first := NewModule(lifecycleConfig(), &mockService{}, nil)
+	ctx := context.Background()
+	if err := first.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = first.Stop(context.Background()) })
+
+	cfg := lifecycleConfig()
+	cfg.Port = first.Addr().(*net.TCPAddr).Port
+	second := NewModule(cfg, &mockService{}, nil)
+	if err := second.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Start(ctx); err == nil {
+		_ = second.Stop(ctx)
+		t.Fatal("expected Start to fail when the port is in use")
 	}
 }
 
@@ -264,14 +329,10 @@ func TestModule_HealthCheck(t *testing.T) {
 		Timeout: "30s",
 	}
 
-	svc := &mockService{}
-	module := NewModule(cfg, svc, nil)
+	module := NewModule(cfg, &mockService{}, nil)
 
-	ctx := context.Background()
-
-	// HealthCheck should always succeed (simple implementation)
-	err := module.HealthCheck(ctx)
-	if err != nil {
-		t.Errorf("HealthCheck failed: %v", err)
+	// Not serving yet: unhealthy.
+	if err := module.HealthCheck(context.Background()); err == nil {
+		t.Error("expected HealthCheck to fail when the server is not running")
 	}
 }

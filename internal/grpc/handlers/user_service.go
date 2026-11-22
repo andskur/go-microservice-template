@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/internal/service"
-	proto "microservice-template/protocols/userservice"
 )
 
 // UserServiceHandler implements the UserService gRPC service.

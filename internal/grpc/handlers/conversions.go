@@ -4,8 +4,8 @@ package handlers
 import (
 	"fmt"
 
+	proto "microservice-template/api/proto/userservice"
 	"microservice-template/internal/models"
-	proto "microservice-template/protocols/userservice"
 )
 
 // UserToProto converts domain User to proto User.

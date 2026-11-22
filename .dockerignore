@@ -1,4 +1,15 @@
 .idea
+.vscode
 LICENSE
-README.md
-.gitignore
+README*.md
+docs/
+system-builder/
+data/
+.env
+
+# Host tool binaries and generated code are rebuilt inside the image.
+bin/
+*.pb.go
+internal/http/server/
+internal/http/models/
+/microservice-template

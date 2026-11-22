@@ -123,7 +123,7 @@ El módulo de repositorio requiere PostgreSQL cuando está habilitado.
 docker run --name postgres-dev \
   -e POSTGRES_USER=dev \
   -e POSTGRES_PASSWORD=dev \
-  -e POSTGRES_DB=microservice_dev \
+  -e POSTGRES_DB=microservice_template_dev \
   -p 5432:5432 \
   -d postgres:16-alpine
 ```

@@ -337,7 +337,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token from gatekeeper service
+      description: JWT token from auth service
 
 # Apply globally
 security:

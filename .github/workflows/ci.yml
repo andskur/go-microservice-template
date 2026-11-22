@@ -2,146 +2,73 @@ name: CI
 
 on:
   pull_request:
-    branches: ["**"]
   push:
     branches: ["main"]
 
 permissions:
   contents: read
-  pull-requests: read
+
+env:
+  # Keep in sync with go.mod and the Dockerfile builder image.
+  GO_VERSION: "1.26.11"
 
 jobs:
-  lint:
+  ci:
+    name: Generate, lint, test, build, vulncheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: "1.24"
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+      # Installs the pinned tools from the Makefile into ./bin and generates
+      # protobuf (buf + local plugins) and swagger code.
+      - name: Generate code
+        run: make generate
 
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Install proto tools
-        run: make proto-install
-
-      - name: Generate protos
-        run: make proto-generate-all
-
-      - name: Install golangci-lint
-        run: make lint-install
-
-      - name: Install go-swagger
-        run: make swagger-install
+      - name: Check go.mod/go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
 
       - name: Validate Swagger spec
         run: make swagger-validate
 
-      - name: Generate API code
-        run: make generate-api
+      - name: Lint protobuf
+        run: make buf-lint
 
-      - name: Lint
+      - name: Lint Go (golangci-lint, pinned)
         run: make lint
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Install proto tools
-        run: make proto-install
-
-      - name: Generate protos
-        run: make proto-generate-all
-
-      - name: Install go-swagger
-        run: make swagger-install
-
-      - name: Validate Swagger spec
-        run: make swagger-validate
-
-      - name: Generate API code
-        run: make generate-api
-
-      - name: Test
+      - name: Test (race detector)
         run: make test
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Install proto tools
-        run: make proto-install
-
-      - name: Generate protos
-        run: make proto-generate-all
-
-      - name: Install go-swagger
-        run: make swagger-install
-
-      - name: Generate API code
-        run: make generate-api
 
       - name: Build
         run: make build
+
+      - name: Vulnerability check (govulncheck, pinned)
+        run: make vuln
+
+  docker:
+    name: Docker build (no publish)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build image
+        run: docker build -t service:ci .
+
+      - name: Smoke test /health
+        run: |
+          docker run -d --name svc -p 8080:8080 -e HTTP_ENABLED=true service:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health; then echo; exit 0; fi
+            sleep 1
+          done
+          docker logs svc
+          exit 1

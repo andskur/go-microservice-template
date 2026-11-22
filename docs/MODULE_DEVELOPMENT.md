@@ -576,11 +576,11 @@ internal/
 - Middleware: logging and recovery interceptors (no Sentry).
 - Handler registration: add your handlers in `module.go -> registerHandlers()` (currently empty; populate after generating protos).
 - Conversions: add proto helpers under `internal/grpc/` (keeps models package free of proto deps).
-- Protocols: pull from the shared repo (`https://github.com/andskur/protocols-template.git`) via subtree; no bundled example is kept locally.
+- Protocols: the bundled example API lives in `api/proto/`; shared protocols are pulled into `protocols/` via subtree (`make proto-setup PROTO_REPO=...`) and imported as `<module>/protocols/...`.
 
 ### Adding a New gRPC Service
 1. Pull/update protocols: `make proto-setup` / `make proto-update` (subtree from protocols-template).
-2. Generate code (Buf recommended): `make buf-generate PROTO_PACKAGE=<service>` or use `make proto-generate PROTO_PACKAGE=<service>`.
+2. Generate code: `make generate-proto` (or `make proto-generate PROTO_PACKAGE=<service>` for one package).
 3. Add conversion helpers in `internal/grpc/` for your types and enums.
 4. Implement handlers in `internal/grpc/` using `service.IService` (or other deps); return gRPC status errors.
 5. Register handlers in `module.go -> registerHandlers()`.
@@ -604,7 +604,7 @@ The HTTP module provides a REST API using go-swagger for spec-first development 
 
 ```bash
 # Install go-swagger (one-time)
-make swagger-install
+make tools   # installs the pinned swagger/buf/protoc plugins into ./bin
 
 # Edit api/swagger.yaml to define your endpoints
 
@@ -925,7 +925,7 @@ export HTTP_MOCK_AUTH=true
 curl -H "Authorization: Bearer any-token" http://localhost:8080/users
 ```
 
-**Gatekeeper integration:**
+**Auth service integration:**
 See detailed TODO in `internal/http/auth/auth.go` for external auth service integration steps.
 
 ### HTTP Testing Patterns
@@ -1025,11 +1025,11 @@ internal/http/
 **Step 1: Define Protocol**
 
 ```protobuf
-// protocols/userservice/user.proto
+// api/proto/userservice/user.proto
 syntax = "proto3";
 package userservice;
 
-option go_package = "microservice-template/protocols/userservice";
+option go_package = "microservice-template/api/proto/userservice";
 
 service UserService {
   rpc GetUserByEmail(EmailRequest) returns (User);
@@ -1067,7 +1067,7 @@ message CreateUserRequest {
 }
 ```
 
-Generate: `make proto-generate PROTO_PACKAGE=userservice`
+Generate: `make generate-proto`
 
 **Step 2: Create Pure Client (pkg)**
 
@@ -1077,7 +1077,7 @@ package userservice
 
 import (
     "context"
-    proto "microservice-template/protocols/userservice"
+    proto "microservice-template/api/proto/userservice"
 )
 
 // IUserServiceClient works with proto types only
@@ -1100,7 +1100,7 @@ import (
     
     "google.golang.org/grpc"
     "google.golang.org/grpc/keepalive"
-    proto "microservice-template/protocols/userservice"
+    proto "microservice-template/api/proto/userservice"
 )
 
 type Client struct {
@@ -1237,7 +1237,7 @@ import (
     "time"
     "github.com/gofrs/uuid"
     "microservice-template/internal/models"
-    proto "microservice-template/protocols/userservice"
+    proto "microservice-template/api/proto/userservice"
 )
 
 func UserFromProto(pb *proto.User) (*models.User, error) {

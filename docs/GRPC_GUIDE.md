@@ -7,7 +7,7 @@ This guide explains how to use the gRPC module in the microservice template.
 - Module path: `internal/grpc/` (module pattern: Init → Start → Stop → HealthCheck).
 - Health: standard `grpc.health.v1` service is registered.
 - Middleware: logging + recovery (no Sentry).
-- Protocol source is expected to come from the shared protocols repo (git subtree), not bundled locally.
+- Protocol sources: the bundled example API in `api/proto/` and, optionally, a shared protocols repository added under `protocols/` via git subtree (see below).
 
 ## Configuration
 
@@ -26,24 +26,45 @@ Env vars map with uppercase and underscores (e.g., `GRPC_ENABLED`, `GRPC_PORT`).
 
 ## Protobuf Workflow
 
-You can use either protoc (existing) or Buf (recommended). The default protocols repo is `https://github.com/andskur/protocols-template.git` and is pulled via git subtree.
+Protobuf code is generated with [Buf](https://buf.build) using the locally installed, version-pinned
+`protoc-gen-go` and `protoc-gen-go-grpc` plugins (no `protoc`, no Buf registry access). Generated
+`*.pb.go` files are not committed; `make generate` (or `make generate-proto`) produces them.
 
-### Buf workflow (recommended)
+There are two proto sources:
+
+| Directory | What | Generated import path |
+|-----------|------|-----------------------|
+| `api/proto/` | Bundled example API (`userservice`) used by `internal/grpc`, `internal/grpcclient` and `pkg/userservice` | `<module>/api/proto/userservice` (explicit `go_package`) |
+| `protocols/` | Shared protocols repository added as a git subtree (absent in a fresh template) | `<module>/protocols/<path>` (rewritten by `buf.gen.yaml`) |
+
+The example lives in `api/proto/` (not `protocols/`) so that `make proto-setup` can add a shared
+protocols repository at `protocols/` on a fresh template without conflicts, and the example keeps
+building next to it until you remove it.
+
+### Shared protocols (git subtree)
+
 ```bash
-make buf-install                     # Install Buf CLI
-make buf-lint                        # Lint protos
-make buf-generate PROTO_PACKAGE=user # Generate Go code for one package
-make buf-generate-all                # Generate Go code for all packages
+# Requires a clean working tree (git subtree requirement); PROTO_REPO/PROTO_BRANCH are optional
+make proto-setup PROTO_REPO=https://github.com/your-org/your-protocols.git PROTO_BRANCH=main
+make generate                        # generates api/proto and protocols/
+make proto-update                    # later: pull upstream changes into protocols/
 ```
 
-### Protoc workflow (traditional)
+The `go_package` options written in the shared `.proto` files point at the protocols repository
+itself. `buf.gen.yaml` enables Buf managed mode with a `go_package_prefix` override of
+`<module>/protocols`, so a file `protocols/user/v1/user.proto` is generated to
+`protocols/user/v1/*.pb.go` and imported as `<module>/protocols/user/v1`. `make rename` updates the
+prefix together with the module path.
+
+### Targets
 ```bash
-make proto-install                   # Install protoc plugins
-make proto-setup                     # Add protocols via subtree (uses PROTO_REPO default)
-make proto-generate PROTO_PACKAGE=user
-make proto-generate-all
-make proto-clean
+make generate-proto                   # Generate api/proto and (if present) protocols/
+make proto-generate PROTO_PACKAGE=user # Generate one package of protocols/
+make buf-lint                         # Lint api/proto and protocols/
+make buf-breaking                     # Breaking-change check for protocols/ against main
+make proto-clean                      # Remove generated *.pb.go
 ```
+`make proto-generate-all` and `make buf-generate-all` are kept as aliases of `make generate-proto`.
 
 ## Handler Implementation Pattern
 

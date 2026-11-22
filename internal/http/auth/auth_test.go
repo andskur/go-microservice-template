@@ -110,7 +110,7 @@ func TestAuth_CheckAuth_NonMockMode(t *testing.T) {
 	svc := &mockService{}
 	auth := NewAuth(svc, false, []string{})
 
-	// Non-mock mode should return unauthorized (since gatekeeper is not integrated)
+	// Non-mock mode should return unauthorized (since the auth service is not integrated)
 	user, err := auth.CheckAuth("Bearer valid-token")
 	if err == nil {
 		t.Error("expected error in non-mock mode, got nil")
